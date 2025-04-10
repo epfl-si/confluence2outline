@@ -3,6 +3,7 @@
 library(tidyverse)
 library(archive)
 library(xml2)
+library(bit64)
 
 archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 
@@ -58,7 +59,16 @@ props_tibble <- function(objects_nodeset) {
             pkeys = xml_attr(props, 'name'),
             pvals = xml_text(props)) %>%
         pivot_wider(names_from = pkeys, values_from = pvals) %>%
-        select(-row)
+        select(-row) %>%
+        mutate(across(any_of(c("position")) |
+                      ends_with("version", ignore.case = TRUE),
+                      as.integer),
+               across(any_of(c("longValue")),
+                      as.integer64),
+               across(any_of(c("contentStatus", "relationName", "targetType")),
+                      as.factor),
+               across(ends_with("date", ignore.case = TRUE),
+                      parse_datetime))
 }
 
 #' Format the “props” that have a `class` for each node in a nodeset, into a tibble
@@ -149,7 +159,8 @@ bodies <- {
                type = case_when(
                    bodyType == 0 ~ "SpaceDescription",
                    bodyType == 1 ~ "CustomContentEntityObject",
-                   bodyType == 2 ~ "PageEtc")) %>%
+                   bodyType == 2 ~ "PageEtc") %>%
+               as_factor) %>%
         mutate(ns %>% classful_props_tibble)
 }
 
