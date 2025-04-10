@@ -137,3 +137,33 @@ stopifnot(
     ## The converse is not true, because some properties are for
     ## objects other than pages.
 })
+
+bodies <- {
+    ns <- entities_xml %>% xml_find_all('//object[@class="BodyContent"]')
+    tibble(body_id = ns %>% confluence_id) %>%
+        mutate(ns %>% props_tibble) %>%
+        mutate(body = body %>%
+                   str_replace_all("]] >", "]]>") %>%
+                   paste0('<confluence-body>', ., '</confluence-body>')) %>%
+        mutate(.keep = "unused",
+               type = case_when(
+                   bodyType == 0 ~ "SpaceDescription",
+                   bodyType == 1 ~ "CustomContentEntityObject",
+                   bodyType == 2 ~ "PageEtc")) %>%
+        mutate(ns %>% classful_props_tibble)
+}
+
+stopifnot("All bodies have a type" =
+              bodies %>%
+              filter(is.na(type)) %>%
+              nrow == 0)
+stopifnot("Type of bodies pointing to a `content.SpaceDescription`" =
+              bodies %>%
+              filter(! is.na(content.SpaceDescription)) %>%
+              filter(type != "SpaceDescription") %>%
+              nrow == 0)
+stopifnot("Type of bodies pointing to a `content.CustomContentEntityObject`" =
+              bodies %>%
+              filter(! is.na(content.CustomContentEntityObject)) %>%
+              filter(type != "CustomContentEntityObject") %>%
+              nrow == 0)
