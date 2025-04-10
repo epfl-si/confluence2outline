@@ -118,3 +118,22 @@ content_properties <- {
         mutate(ns %>% props_tibble) %>%
         mutate(ns %>% classful_props_tibble)
 }
+
+## page_versions$content_property_ids (as a “multivalued foreign key”)
+## ought to be a subset of content_properties[c("content.Page",
+## "property_id")]:
+stopifnot(
+    "page_versions$content_property_ids is subsumed by content_properties" = {
+        relation1 <-
+            page_versions %>%
+            transmute(content_id, property_id = content_property_ids) %>%
+            unnest_longer(property_id)
+        relation2 <-
+            content_properties %>%
+            transmute(content_id = content.Page, property_id)
+        anti_join(relation1, relation2,
+                  by = join_by(content_id, property_id)) %>%
+            nrow == 0
+    ## The converse is not true, because some properties are for
+    ## objects other than pages.
+})
