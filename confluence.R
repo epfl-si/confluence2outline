@@ -167,7 +167,17 @@ page_versions <- {
                   summarize(n = n(), n_distinct = n_distinct(version)) %>%
                   filter(n != n_distinct) %>%
                   nrow == 0)
-    page_versions
+    stopifnot("Current version ought to be the last version" =
+                  page_versions %>%
+                  group_by(originalVersion) %>%
+                  summarize(last = max(version),
+                            original = tibble(version, is.original) %>%
+                                filter(is.original) %>%
+                                pull(version)) %>%
+                  filter(last != original)  %>%
+                  nrow == 0)
+    page_versions %>% rename(is.latest = is.original,
+                             latest.version = originalVersion)
 }
 
 bodies <- {
