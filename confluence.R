@@ -146,7 +146,28 @@ page_versions <- {
         anti_join(relation1, relation2, by = by) %>% nrow == 0 &&
             anti_join(relation2, relation1, by = by) %>% nrow == 0
     })
-    page_versions %>% select(-content_property_ids)
+    page_versions <- page_versions %>% select(-content_property_ids)
+    ## Pages ought to be grouped into version histories by their
+    ## `originalVersion.Page`, which needs a little data-cleaning:
+    stopifnot("No page version has itself as the original" =
+                  page_versions %>%
+                  filter(content_id == originalVersion.Page) %>%
+                  nrow == 0)
+    page_versions <-
+        page_versions %>%
+        mutate(.keep = "unused",   # Except as shown below
+               page_id = content_id,
+               is.original = is.na(originalVersion.Page),
+               originalVersion = coalesce(originalVersion.Page, page_id))
+    stopifnot("versions should be unique per version group" =
+                  ## (... except perhaps for drafts)
+                  page_versions %>%
+                  filter(contentStatus != "draft") %>%
+                  group_by(originalVersion) %>%
+                  summarize(n = n(), n_distinct = n_distinct(version)) %>%
+                  filter(n != n_distinct) %>%
+                  nrow == 0)
+    page_versions
 }
 
 bodies <- {
