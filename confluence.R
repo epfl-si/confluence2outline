@@ -146,7 +146,7 @@ page_versions <- {
         anti_join(relation1, relation2, by = by) %>% nrow == 0 &&
             anti_join(relation2, relation1, by = by) %>% nrow == 0
     })
-    page_versions
+    page_versions %>% select(-content_property_ids)
 }
 
 bodies <- {
