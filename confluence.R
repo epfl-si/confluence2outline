@@ -97,6 +97,13 @@ classful_props_tibble <- function(objects_nodeset) {
         select(-row)
 }
 
+content_properties <- {
+    ns <- entities_xml %>% xml_find_all('//object[@class="ContentProperty"]')
+    tibble(property_id = ns %>% confluence_id) %>%
+        mutate(ns %>% props_tibble) %>%
+        mutate(ns %>% classful_props_tibble)
+}
+
 ## Again, stuff like
 ##
 ##      object_pages <- entities %>%
@@ -109,7 +116,8 @@ classful_props_tibble <- function(objects_nodeset) {
 
 page_versions <- {
     ns <- entities_xml %>% xml_find_all('//object[@class="Page"]')
-    tibble(content_id = ns %>% confluence_id) %>%
+    page_versions <-
+        tibble(content_id = ns %>% confluence_id) %>%
         mutate(ns %>% props_tibble) %>%
         mutate(ns %>% classful_props_tibble) %>%
         mutate(ns %>%
@@ -120,37 +128,31 @@ page_versions <- {
                             flatten = FALSE) %>%
                tibble(ids = .) %>% rowwise %>%
                transmute(content_property_ids = xml_text(ids) %>% list))
-}
-
-content_properties <- {
-    ns <- entities_xml %>% xml_find_all('//object[@class="ContentProperty"]')
-    tibble(property_id = ns %>% confluence_id) %>%
-        mutate(ns %>% props_tibble) %>%
-        mutate(ns %>% classful_props_tibble)
-}
-
-## page_versions$content_property_ids (as a “multivalued foreign key”)
-## ought to be a subset of content_properties[c("content.Page",
-## "property_id")]:
-stopifnot(
-    "page_versions$content_property_ids is subsumed by content_properties" = {
+    ## page_versions$content_property_ids (as a “multivalued foreign
+    ## key”) ought to contain the same information as
+    ## content_properties[c("content.Page", "property_id")] where the
+    ## former column is not NA:
+    stopifnot(
+        "page_versions$content_property_ids is redundant" = {
         relation1 <-
             page_versions %>%
             transmute(content_id, property_id = content_property_ids) %>%
             unnest_longer(property_id)
         relation2 <-
             content_properties %>%
+            filter(! is.na(content.Page)) %>%
             transmute(content_id = content.Page, property_id)
-        anti_join(relation1, relation2,
-                  by = join_by(content_id, property_id)) %>%
-            nrow == 0
-    ## The converse is not true, because some properties are for
-    ## objects other than pages.
-})
+        by <- join_by(content_id, property_id)
+        anti_join(relation1, relation2, by = by) %>% nrow == 0 &&
+            anti_join(relation2, relation1, by = by) %>% nrow == 0
+    })
+    page_versions
+}
 
 bodies <- {
     ns <- entities_xml %>% xml_find_all('//object[@class="BodyContent"]')
-    tibble(body_id = ns %>% confluence_id) %>%
+    bodies <-
+        tibble(body_id = ns %>% confluence_id) %>%
         mutate(ns %>% props_tibble) %>%
         mutate(body = body %>%
                    str_replace_all("]] >", "]]>") %>%
@@ -162,22 +164,22 @@ bodies <- {
                    bodyType == 2 ~ "PageEtc") %>%
                as_factor) %>%
         mutate(ns %>% classful_props_tibble)
+    stopifnot("All bodies have a type" =
+                  bodies %>%
+                  filter(is.na(type)) %>%
+                  nrow == 0)
+    stopifnot("Type of bodies pointing to a `content.SpaceDescription`" =
+                  bodies %>%
+                  filter(! is.na(content.SpaceDescription)) %>%
+                  filter(type != "SpaceDescription") %>%
+                  nrow == 0)
+    stopifnot("Type of bodies pointing to a `content.CustomContentEntityObject`" =
+                  bodies %>%
+                  filter(! is.na(content.CustomContentEntityObject)) %>%
+                  filter(type != "CustomContentEntityObject") %>%
+                  nrow == 0)
+    bodies
 }
-
-stopifnot("All bodies have a type" =
-              bodies %>%
-              filter(is.na(type)) %>%
-              nrow == 0)
-stopifnot("Type of bodies pointing to a `content.SpaceDescription`" =
-              bodies %>%
-              filter(! is.na(content.SpaceDescription)) %>%
-              filter(type != "SpaceDescription") %>%
-              nrow == 0)
-stopifnot("Type of bodies pointing to a `content.CustomContentEntityObject`" =
-              bodies %>%
-              filter(! is.na(content.CustomContentEntityObject)) %>%
-              filter(type != "CustomContentEntityObject") %>%
-              nrow == 0)
 
 user2content <- {
     ns <- entities_xml %>%
