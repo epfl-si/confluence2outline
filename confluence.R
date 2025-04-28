@@ -209,13 +209,22 @@ bodies <- {
                   filter(! is.na(content.CustomContentEntityObject)) %>%
                   filter(type != "CustomContentEntityObject") %>%
                   nrow == 0)
-    stopifnot("Page-like bodies should have a match in page_versions" =
-                  bodies %>%
-                  filter(! is.na(content.Page)) %>%
-                  anti_join(page_versions,
-                            by = join_by(content.Page == page_id)) %>%
-                  nrow == 0)
     bodies
+}
+
+pages <- {
+    page_bodies <- bodies %>%
+        filter(! is.na(content.Page)) %>%
+        rename(page_id = content.Page) %>%
+        relocate(page_id)
+    by <- join_by(page_id)
+    stopifnot("Page-like bodies should have a match in page_versions" =
+                  page_bodies %>%
+                  anti_join(page_versions, by = by) %>%
+                  nrow == 0)
+    page_bodies %>%
+        left_join(page_versions, by = by) %>%
+        select(-starts_with("content."), -type)
 }
 
 user2content <- {
