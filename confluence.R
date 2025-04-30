@@ -244,3 +244,67 @@ users <- {
     tibble(user_key = ns %>% confluence_id) %>%
         mutate(ns %>% props_tibble)
 }
+
+attachments <- {
+    ns <- entities_xml %>%
+        xml_find_all('//object[@class="Attachment"]')
+    attachments_xml <- tibble(attachment_id = ns %>% confluence_id) %>%
+        mutate(ns %>% props_tibble) %>%
+        mutate(ns %>% classful_props_tibble) %>%
+        mutate(
+            originalAttachmentId = coalesce(originalVersion.Attachment, attachment_id),
+            is.original = is.na(originalVersion.Attachment),
+            confluence_zip_path = glue::glue("attachments/{containerContent.Page}/{originalAttachmentId}/{version}"),
+            ext = title %>% tools::file_ext() %>% as.factor) %>%
+        select(-originalVersion.Attachment)
+    confluence_files <- archive(archive_path)
+    by <- join_by(confluence_zip_path == path)
+    stopifnot("No lost attachments" =
+                  attachments_xml %>%
+                  anti_join(confluence_files, by = by) %>%
+                  nrow == 0)
+    stopifnot("No orphan files in Zip" =
+                  confluence_files %>%
+                  anti_join(attachments_xml,
+                            by = join_by(path == confluence_zip_path)) %>%
+                  filter(! (path %in% c("entities.xml",
+                                        "exportDescriptor.properties"))) %>%
+                  nrow == 0)
+    attachments <- attachments_xml %>% left_join(confluence_files, by = by)
+    media_type_properties <- content_properties %>%
+        filter(name == "MEDIA_TYPE")
+    stopifnot("Media types are for attachments only" =
+                  media_type_properties %>%
+                  filter(is.na(content.Attachment)) %>%
+                  nrow == 0)
+    media_types <-
+        media_type_properties %>%
+        mutate(.keep = "none",
+               attachment_id = content.Attachment,
+               media.type = stringValue %>% as.factor)
+    stopifnot("All attachments should have a media type" =
+                  attachments %>%
+                  anti_join(media_types, by = join_by(attachment_id)) %>%
+                  nrow == 0)
+    attachments_and_types <-
+        attachments %>%
+        left_join(media_types, by = join_by(attachment_id))
+    stopifnot("`version` should be unique per attachment group" =
+                  attachments_and_types %>%
+                  group_by(originalAttachmentId) %>%
+                  summarize(n = n(), n_distinct = n_distinct(version)) %>%
+                  filter(n != n_distinct) %>%
+                  nrow == 0)
+    stopifnot("“Original” attachment ID should in reality be the latest ID" =
+                  attachments_and_types %>%
+                  group_by(originalAttachmentId) %>%
+                  summarize(last = max(version),
+                            original = tibble(version, is.original) %>%
+                                filter(is.original) %>%
+                                pull(version)) %>%
+                  filter(last != original)  %>%
+                  nrow == 0)
+    attachments_and_types %>%
+        rename(is.latest = is.original,
+               latest.attachment_id = originalAttachmentId)
+}
