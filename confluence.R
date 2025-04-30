@@ -6,7 +6,9 @@ library(archive)
 library(xml2)
 library(bit64)
 
-archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
+if (! exists("archive_path")) {   # Normally from main.R
+    archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
+}
 
 entities_xml <-
     archive::archive_read(archive_path, file = "entities.xml") %>%
@@ -242,11 +244,3 @@ users <- {
     tibble(user_key = ns %>% confluence_id) %>%
         mutate(ns %>% props_tibble)
 }
-
-test.body <-
-    pages %>%
-    filter(is.latest &
-           str_detect(body, "quasi-services")) %>%
-    pull(body)
-
-test.page %>% pull(body) %>% write("test/data/services-etc.xml")
