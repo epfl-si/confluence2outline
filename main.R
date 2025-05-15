@@ -9,7 +9,8 @@ if (interactive()) {
 } else {
     opts <- matrix(byrow=TRUE, ncol=4, c(
       "from"               , NA, 2, "character",
-      "skip-install"       , NA, 0, "logical"
+      "skip-install"       , NA, 0, "logical",
+      "small-sample"       , NA, 0, "logical"
     ))
     opts <- getopt::getopt(opts)
     archive_path <- opts$from
@@ -42,6 +43,12 @@ test.page <-
 
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
+if (! is.null(opts$`small-sample`)) {
+    confluence$pages <- test.page
+    confluence$attachments <- confluence$attachments %>%
+        filter(containerContent.Page == test.page$page_id)
+}
+
 ############################ Transform ###############################
 
 source("outline.R")
@@ -51,7 +58,10 @@ outline <- transform(archive_path, confluence)
 
 source_python("zip-streams.py")
 zip.from <- ZipSource(archive_path)
-zip.to <- ZipSink("outline.zip")
+zip.to <- ifelse(is.null(opts$`small-sample`),
+                 "outline.zip",
+                 "outline-SMALL.zip") %>%
+    ZipSink()
 rewrite.attachments(outline$attachments, zip.from, zip.to)
 outline$meta %>%
     jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
