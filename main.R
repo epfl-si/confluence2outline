@@ -32,6 +32,12 @@ test.page <-
 
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
+if ("--small-sample" %in% cmdline) {
+    confluence$pages <- test.page
+    confluence$attachments <- confluence$attachments %>%
+        filter(containerContent.Page == test.page$page_id)
+}
+
 ############################ Transform ###############################
 
 source("outline.R")
@@ -41,7 +47,10 @@ outline <- transform(archive_path, confluence)
 
 source_python("zip-streams.py")
 zip.from <- ZipSource(archive_path)
-zip.to <- ZipSink("outline.zip")
+zip.to <- ifelse("--small-sample" %in% cmdline,
+                 "outline-SMALL.zip",
+                 "outline.zip") %>%
+    ZipSink()
 rewrite.attachments(outline$attachments, zip.from, zip.to)
 outline$meta %>%
     jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
