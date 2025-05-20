@@ -174,6 +174,12 @@ extract.confluence <- function(archive_path) {
                                     pull(version)) %>%
                       filter(last != original)  %>%
                       nrow == 0)
+        stopifnot("page.Parent referential integrity" =
+                      page_versions  %>%
+                      filter(! is.na(parent.Page)) %>%
+                      anti_join(page_versions,
+                                by = join_by(parent.Page == page_id)) %>%
+                      nrow == 0)
         page_versions %>% rename(is.latest = is.original,
                                  latest.version = originalVersion)
     })
@@ -221,10 +227,16 @@ extract.confluence <- function(archive_path) {
                       page_bodies %>%
                       anti_join(page_versions, by = by) %>%
                       nrow == 0)
-        page_bodies %>%
-            left_join(page_versions, by = by) %>%
-            select(-starts_with("content."), -type)
+        ## ⚠ Some pages don't have a body!!
+        page_versions %>%
+            left_join(page_bodies, by = by)
     })
+
+    stopifnot("parent.Page referential integrity" =
+                  pages %>%
+                  filter(! is.na(parent.Page)) %>%
+                  anti_join(pages, by = join_by(parent.Page == page_id)) %>%
+                  nrow == 0)
 
     user2content <- local({
         ns <- entities_xml %>%
