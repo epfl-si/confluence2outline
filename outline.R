@@ -1,5 +1,9 @@
 # install.packages("glue")
 # install.packages("uuid")
+# install.packages("data.tree")
+
+library(data.tree)
+library(stringr)
 
 deterministic.uuid <- function (char_v, ...) {
     ## With the `uuid` package, only UUIDs (deterministically) beget
@@ -31,8 +35,36 @@ transform.attachments <- function (.confluence_attachments, uuid_salt) {
                meta = meta)
 }
 
+transform.documentStructure <- function (.confluence_pages) {
+    match.emoji <- paste0(
+        "(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic})",
+        "(?:\\p{Regional_Indicator}|\\p{Emoji_Modifier})*")
+
+    .confluence_pages %>%
+        mutate(.keep="none",
+               id = page_id, parent = replace_na(parent.Page, "__ROOT__"),
+               title,
+               icon = title %>%
+                   str_extract(match.emoji) %>%
+                   replace_na("📒"),
+               url = "/doc/todo-HMxR5dB0ld") %>%
+        relocate(id, parent) %>%
+        FromDataFrameNetwork() %>%
+        as.list(mode = "explicit", unname=TRUE,
+                nameName = "id", childrenName = "children") %>%
+        { .$children }
+}
+
 transform <- function (archive_path, confluence) {
     attachments <- transform.attachments(confluence$attachments, uuid_salt = archive_path)
+
+    documentStructure <-  confluence$pages %>%
+        transform.documentStructure()
+
+    meta <- list(
+        attachments = attachments$meta,
+        collection = list(
+            documentStructure = documentStructure))
 
     meta.filename <- archive_path %>%
         base::basename() %>%
@@ -40,7 +72,7 @@ transform <- function (archive_path, confluence) {
         paste0(".json")
 
     rlang::env(attachments = attachments$tibble,
-               meta = list(attachments = attachments$meta),
+               meta = meta,
                meta.filename = meta.filename)
 }
 
