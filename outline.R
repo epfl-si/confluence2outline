@@ -16,17 +16,27 @@ deterministic.uuid <- function (char_v, ...) {
     uuid::UUIDfromName(namespace, char_v)
 }
 
-transform.attachments <- function (.confluence_attachments, uuid_salt) {
+transform.attachments <- function (.confluence_attachments, outline_documents, uuid_salt) {
     uploads.prefix <- "uploads/restored-from-Confluence"
     attachments <-
         .confluence_attachments %>%
-        mutate(attachment_uuid = deterministic.uuid(attachment_id, "attachment_id", uuid_salt),
+        mutate(attachment_uuid = deterministic.uuid(attachment_id,
+                                                    "attachment_id", uuid_salt),
                outline.key = glue::glue("{ uploads.prefix }/{ attachment_uuid }/{ title }")) %>%
         relocate(attachment_uuid, outline.key) %>%
         select(-attachment_id)
 
+    by = join_by(containerContent.Page == page_id)
+    stopifnot("All attachments belong to a document" =
+                  attachments %>%
+                  anti_join(outline_documents, by = by) %>%
+                  nrow == 0)
+
     meta <- attachments %>%
-        transmute(id = attachment_uuid, documentId = "TODO",
+        left_join(
+            outline_documents %>% select(page_id, document_uuid),
+            by = by) %>%
+        transmute(id = attachment_uuid, documentId = document_uuid,
                   contentType = media.type, size, name = title) %>%
         split(.$id) %>%
         map(~ as.list(.x))
@@ -35,14 +45,28 @@ transform.attachments <- function (.confluence_attachments, uuid_salt) {
                meta = meta)
 }
 
-transform.documentStructure <- function (.confluence_pages) {
+transform.documentMetadata <- function (.confluence_pages, uuid_salt) {
+    documents <- .confluence_pages %>%
+        mutate(document_uuid = deterministic.uuid(
+                   page_id, "document_id", uuid_salt))
+
+    document.tibble <-
+        documents %>%
+        # We already checked null-anti-join-ness in confluence.R:
+        left_join(documents %>%
+                  mutate(.keep = "none",
+                         parent.Page = page_id, parent_uuid = document_uuid),
+                  by = join_by(parent.Page))
+
     match.emoji <- paste0(
         "(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic})",
         "(?:\\p{Regional_Indicator}|\\p{Emoji_Modifier})*")
 
-    .confluence_pages %>%
+    document.tree <-
+        document.tibble %>%
         mutate(.keep="none",
-               id = page_id, parent = replace_na(parent.Page, "__ROOT__"),
+               id = document_uuid,
+               parent = replace_na(parent_uuid, "__ROOT__"),
                title,
                icon = title %>%
                    str_extract(match.emoji) %>%
@@ -57,25 +81,26 @@ transform.documentStructure <- function (.confluence_pages) {
         as.list(mode = "explicit", unname=TRUE,
                 nameName = "id", childrenName = "children") %>%
         { .$children }
+
+    rlang::env(tibble = document.tibble,
+               tree = document.tree)
 }
 
 transform <- function (archive_path, confluence) {
-    attachments <- transform.attachments(confluence$attachments, uuid_salt = archive_path)
-
-    documentStructure <-  confluence$pages %>%
-        transform.documentStructure()
+    documentMeta <- transform.documentMetadata(confluence$pages, uuid_salt = archive_path)
+    attachments <- transform.attachments(confluence$attachments, documentMeta$tibble, uuid_salt = archive_path)
 
     meta <- list(
         attachments = attachments$meta,
-        collection = list(
-            documentStructure = documentStructure))
+        collection = list(documentStructure = documentMeta$tree))
 
     meta.filename <- archive_path %>%
         base::basename() %>%
         str_extract("^(.*?)-[0-9-]*[.]xml[.]zip", group = 1) %>%
         paste0(".json")
 
-    rlang::env(attachments = attachments$tibble,
+    rlang::env(documents = documentMeta,
+               attachments = attachments$tibble,
                meta = meta,
                meta.filename = meta.filename)
 }
