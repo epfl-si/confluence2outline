@@ -54,5 +54,5 @@ zip.to <- ifelse("--small-sample" %in% cmdline,
 rewrite.attachments(outline$attachments, zip.from, zip.to)
 outline$meta %>%
     jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
-    zip.to$add(as_filename = "ISAS-FSD.json")
+    zip.to$add(as_filename = outline$meta.filename)
 zip.to$close()

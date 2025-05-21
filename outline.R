@@ -34,8 +34,14 @@ transform.attachments <- function (.confluence_attachments, uuid_salt) {
 transform <- function (archive_path, confluence) {
     attachments <- transform.attachments(confluence$attachments, uuid_salt = archive_path)
 
+    meta.filename <- archive_path %>%
+        base::basename() %>%
+        str_extract("^(.*?)-[0-9-]*[.]xml[.]zip", group = 1) %>%
+        paste0(".json")
+
     rlang::env(attachments = attachments$tibble,
-               meta = list(attachments = attachments$meta))
+               meta = list(attachments = attachments$meta),
+               meta.filename = meta.filename)
 }
 
 rewrite.attachments <- function (.attachments, zip.from, zip.to) {
