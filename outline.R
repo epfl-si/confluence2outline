@@ -48,7 +48,11 @@ transform.documentStructure <- function (.confluence_pages) {
                    str_extract(match.emoji) %>%
                    replace_na("📒"),
                url = "/doc/todo-HMxR5dB0ld") %>%
-        relocate(id, parent) %>%
+        relocate(parent, id) %>%        # Parent comes first (to get
+                                        # things right in case there
+                                        # is only one doc, i.e. when
+                                        # running under
+                                        # --small-sample)
         FromDataFrameNetwork() %>%
         as.list(mode = "explicit", unname=TRUE,
                 nameName = "id", childrenName = "children") %>%
