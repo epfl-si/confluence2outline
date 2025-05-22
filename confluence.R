@@ -1,4 +1,5 @@
 # install.packages("archive")
+# install.packages("glue")
 
 library(tidyverse)
 library(archive)
@@ -241,3 +242,11 @@ users <- {
     tibble(user_key = ns %>% confluence_id) %>%
         mutate(ns %>% props_tibble)
 }
+
+test.body <-
+    pages %>%
+    filter(is.latest &
+           str_detect(body, "quasi-services")) %>%
+    pull(body)
+
+test.page %>% pull(body) %>% write("test/data/services-etc.xml")
