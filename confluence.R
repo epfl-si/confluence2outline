@@ -253,7 +253,7 @@ extract.confluence <- function(archive_path) {
             mutate(ns %>% props_tibble)
     }
 
-    attachments <- {
+    all.attachments <- {
         ns <- entities_xml %>%
             xml_find_all('//object[@class="Attachment"]')
         attachments_xml <- tibble(attachment_id = ns %>% confluence_id) %>%
@@ -317,7 +317,37 @@ extract.confluence <- function(archive_path) {
                    latest.attachment_id = originalAttachmentId)
     }
 
+    ## Most attachments get copied with their parent page, and go
+    ## unused as one edits the copy!! Yet they still end up in the
+    ## Zip export somehow!
+    required.attachments <-
+        pages %>%
+        filter(str_detect(body, fixed("ri:attachment"))) %>%
+        rowwise %>% mutate(filename = read_html(body) %>%
+                               xml_find_all('//attachment') %>%
+                               xml_attr("ri:filename") %>%
+                               unique() %>%
+                               list()) %>%
+        unnest_longer(filename) %>%
+        distinct(page_id, filename)
+
+    ## ⚠ Referential integrity from HTML of pages to attachments (the
+    ## other way round) is not guaranteed! (As you probably witnessed
+    ## yourself as a user of Confluence...)
+
+    filtered.attachments <- all.attachments %>%
+        ## TODO: this filtering is still incomplete! Attachments have
+        ## versions too, but the body's HTML references them by name,
+        ## without version information. I don't know at this point how
+        ## (or whether) Confluence picks a version for attachments
+        ## while rendering a page.
+        inner_join(required.attachments,
+                   by = join_by(containerContent.Page == page_id,
+                                title == filename))
+
     rlang::env(pages = pages,
                page_bodies = page_bodies,
-               attachments = attachments_and_types)
+               required.attachments = required.attachments,
+               unfiltered.attachments = all.attachments,
+               attachments = filtered.attachments)
 }
