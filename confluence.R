@@ -66,7 +66,17 @@ extract.confluence <- function(archive_path) {
                    across(any_of(c("contentStatus", "relationName", "targetType")),
                           as.factor),
                    across(ends_with("date", ignore.case = TRUE),
-                          parse_datetime))
+                          ## I know `parse_datetime` is right there...
+                          ## but we can't use it just now (because of
+                          ## `reticulate` issue #1801)
+                          ~ tibble(dateTimeMillis = .x) %>%
+                              separate_wider_delim(
+                                  dateTimeMillis, delim = ".",
+                                  names = c("dateTime", "millis")) %>%
+                              mutate(date = strptime(
+                                         dateTime,
+                                         format = "%Y-%m-%d %H:%M:%S")) %>%
+                              pull(date)))
     }
 
     #' Format the “props” that have a `class` for each node in a nodeset, into a tibble
