@@ -10,6 +10,7 @@ if (interactive()) {
     opts <- matrix(byrow=TRUE, ncol=4, c(
       "from"               , NA, 2, "character",
       "skip-install"       , NA, 0, "logical",
+      "skip-zip"           , NA, 0, "logical",
       "small-sample"       , NA, 0, "logical"
     ))
     opts <- getopt::getopt(opts)
@@ -54,16 +55,23 @@ if (! is.null(opts$`small-sample`)) {
 source("outline.R")
 outline <- transform(archive_path, confluence)
 
+outline_json <- outline$meta %>%
+    jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
+
 ############################### Load #################################
 
-source_python("zip-streams.py")
-zip.from <- ZipSource(archive_path)
-zip.to <- ifelse(is.null(opts$`small-sample`),
+if (! is.null(opts$`skip-zip`)) {
+    outline_json %>%
+        write(outline$meta.filename)
+} else {
+    source_python("zip-streams.py")
+    zip.from <- ZipSource(archive_path)
+    zip.to <- ifelse(is.null(opts$`small-sample`),
                  "outline.zip",
                  "outline-SMALL.zip") %>%
-    ZipSink()
-rewrite.attachments(outline$attachments, zip.from, zip.to)
-outline$meta %>%
-    jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
-    zip.to$add(as_filename = "ISAS-FSD.json")
-zip.to$close()
+        ZipSink()
+    rewrite.attachments(outline$attachments, zip.from, zip.to)
+    outline_json %>%
+        zip.to$add(as_filename = "ISAS-FSD.json")
+    zip.to$close()
+}
