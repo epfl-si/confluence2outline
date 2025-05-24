@@ -1,5 +1,8 @@
 #' Install dependencies for the Confluence ETL
 
+# install.packages("reticulate")
+library(reticulate)
+
 #' Authored by ChatGPT (except for the `message()`). Yes, it worked
 #' out-of-the-box on the first attempt.
 install_from_comments <- function(path = ".", dry_run = TRUE) {
