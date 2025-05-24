@@ -1,11 +1,23 @@
 # install.packages("tidyverse")
+# install.packages("getopt")
 
 library(tidyverse)
+
+if (interactive()) {
+    opts <- list("skip-install" = TRUE)
+} else {
+    opts <- matrix(byrow=TRUE, ncol=4, c(
+      "skip-install"       , NA, 0, "logical"
+    )) %>%
+        getopt::getopt()
+}
 
 ############################# Make ready #############################
 
 source("install.R")
-install_from_comments(dry_run = FALSE)
+if (is.null(opts$`skip-install`)) {
+    install_from_comments(dry_run = FALSE)
+}
 
 ############################## Extract ###############################
 
