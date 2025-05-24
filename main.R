@@ -19,6 +19,12 @@ if (is.null(opts$`skip-install`)) {
     install_from_comments(dry_run = FALSE)
 }
 
+source("python.R")
+setup_pyenv()
+if (is_null(opts$`skip-install`)) {
+    install_python_dependencies()
+}
+
 ############################## Extract ###############################
 
 source("confluence.R")
