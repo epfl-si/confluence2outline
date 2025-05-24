@@ -2,6 +2,11 @@
 
 library(tidyverse)
 
+############################# Make ready #############################
+
+source("install.R")
+install_from_comments(dry_run = FALSE)
+
 ############################## Extract ###############################
 
 source("confluence.R")
