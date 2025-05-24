@@ -1,7 +1,15 @@
+cmdline <- commandArgs(trailingOnly=TRUE)
+
+if (interactive()) {
+    cmdline <- c(cmdline, "--skip-install")
+}
+
 ############################# Make ready #############################
 
 source("install.R")
-install_from_comments(dry_run = FALSE)
+if (! ("--skip-install" %in% cmdline)) {
+    install_from_comments(dry_run = FALSE)
+}
 
 ############################## Extract ###############################
 
