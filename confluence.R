@@ -209,6 +209,12 @@ bodies <- {
                   filter(! is.na(content.CustomContentEntityObject)) %>%
                   filter(type != "CustomContentEntityObject") %>%
                   nrow == 0)
+    stopifnot("Page-like bodies should have a match in page_versions" =
+                  bodies %>%
+                  filter(! is.na(content.Page)) %>%
+                  anti_join(page_versions,
+                            by = join_by(content.Page == page_id)) %>%
+                  nrow == 0)
     bodies
 }
 
