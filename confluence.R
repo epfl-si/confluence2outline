@@ -317,6 +317,15 @@ extract.confluence <- function(archive_path) {
                    latest.attachment_id = originalAttachmentId)
     }
 
+    stopifnot(
+        "Attachments always belong to the latest version of a page" =
+            all.attachments %>%
+            left_join(pages,
+                      by = join_by(containerContent.Page == page_id),
+                      suffix = c(".page", ".attachment")) %>%
+            filter(! is.latest.attachment) %>%
+            nrow == 0)
+
     ## Most attachments get copied with their parent page, and go
     ## unused as one edits the copy!! Yet they still end up in the
     ## Zip export somehow!
@@ -329,7 +338,7 @@ extract.confluence <- function(archive_path) {
                                unique() %>%
                                list()) %>%
         unnest_longer(filename) %>%
-        distinct(page_id, filename)
+        distinct(latest.version, filename)
 
     ## ⚠ Referential integrity from HTML of pages to attachments (the
     ## other way round) is not guaranteed! (As you probably witnessed
@@ -342,7 +351,7 @@ extract.confluence <- function(archive_path) {
         ## (or whether) Confluence picks a version for attachments
         ## while rendering a page.
         inner_join(required.attachments,
-                   by = join_by(containerContent.Page == page_id,
+                   by = join_by(containerContent.Page == latest.version,
                                 title == filename))
 
     rlang::env(pages = pages,
