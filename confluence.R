@@ -167,3 +167,18 @@ stopifnot("Type of bodies pointing to a `content.CustomContentEntityObject`" =
               filter(! is.na(content.CustomContentEntityObject)) %>%
               filter(type != "CustomContentEntityObject") %>%
               nrow == 0)
+
+user2content <- {
+    ns <- entities_xml %>%
+        xml_find_all('//object[@class="User2ContentRelationEntity"]')
+    tibble(u2c_id = ns %>% confluence_id) %>%
+        mutate(ns %>% props_tibble) %>%
+        mutate(ns %>% classful_props_tibble)
+}
+
+users <- {
+    ns <- entities_xml %>%
+        xml_find_all('//object[@class="ConfluenceUserImpl"]')
+    tibble(user_key = ns %>% confluence_id) %>%
+        mutate(ns %>% props_tibble)
+}
