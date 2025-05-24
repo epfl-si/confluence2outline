@@ -1,7 +1,7 @@
 cmdline <- commandArgs(trailingOnly=TRUE)
 
 if (interactive()) {
-    cmdline <- c(cmdline, "--skip-install")
+    cmdline <- c(cmdline, "--skip-install", "--skip-zip")
 }
 
 ############################# Make ready #############################
@@ -43,16 +43,23 @@ if ("--small-sample" %in% cmdline) {
 source("outline.R")
 outline <- transform(archive_path, confluence)
 
+outline_json <- outline$meta %>%
+    jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
+
 ############################### Load #################################
 
-source_python("zip-streams.py")
-zip.from <- ZipSource(archive_path)
-zip.to <- ifelse("--small-sample" %in% cmdline,
-                 "outline-SMALL.zip",
-                 "outline.zip") %>%
-    ZipSink()
-rewrite.attachments(outline$attachments, zip.from, zip.to)
-outline$meta %>%
-    jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
-    zip.to$add(as_filename = "ISAS-FSD.json")
-zip.to$close()
+if ("--skip-zip" %in% cmdline) {
+    outline_json %>%
+        write(outline$meta.filename)
+} else {
+    source_python("zip-streams.py")
+    zip.from <- ZipSource(archive_path)
+    zip.to <- ifelse("--small-sample" %in% cmdline,
+                     "outline-SMALL.zip",
+                     "outline.zip") %>%
+        ZipSink()
+    rewrite.attachments(outline$attachments, zip.from, zip.to)
+    outline_json %>%
+        zip.to$add(as_filename = "ISAS-FSD.json")
+    zip.to$close()
+}
