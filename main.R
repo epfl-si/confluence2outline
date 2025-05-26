@@ -37,6 +37,9 @@ confluence <- extract.confluence(archive_path = archive_path)
 
 ############################### Test #################################
 
+source("tests.R")
+o <- load.outline("import-Outline/ISAS-FSD-export.json.zip")
+
 test.page <-
     confluence$pages %>%
     filter(is.latest &
