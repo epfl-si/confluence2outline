@@ -60,6 +60,30 @@ transform.attachments.meta <- function (attachments) {
 }
 
 transform.documentStructure <- function (documents) {
+    documents %>%
+        mutate(parent = replace_na(parentDocumentId, "__ROOT__")) %>%
+        relocate(parent, id) %>%  # Parent comes first (to get things
+                                  # right in case there is only one
+                                  # doc, i.e. when running under
+                                  # --small-sample)
+        FromDataFrameNetwork() %>%
+        as.list(mode = "explicit", unname=TRUE,
+                nameName = "id", childrenName = "children") %>%
+        { .$children }
+}
+
+#' R wrapper around the Python class of the same name.
+DocumentConverter <- function (documents_tibble) {
+    source_python("document-converter.py")
+    setOldClass("__main__.PythonStruct")  ## Does nothing but squelch a warning
+                                          ## in the next stanza, afaict
+    setMethod(jsonlite:::asJSON, signature(x="__main__.PythonStruct"),
+              function(x, ...) { x$to_json(...) })
+    DocumentConverter(   # Not this one — The other one (the Python class)
+        documents_tibble = documents_tibble)
+}
+
+transform.documents <- function (.documents, dc) {
     first.emoji <- function(char_v) {
         match.emoji <- paste0(
             "(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic})",
@@ -68,22 +92,17 @@ transform.documentStructure <- function (documents) {
         char_v %>% str_extract(match.emoji)
     }
 
-    documents %>%
-        mutate(.keep="none",
-               documentId, parent = replace_na(parentDocumentId, "__ROOT__"),
-               title,
-               icon = title %>% first.emoji() %>%
-                   replace_na("📒"),
-               url = "/doc/todo-HMxR5dB0ld") %>%
-        relocate(parent, documentId) %>%  # Parent comes first (to get
-                                          # things right in case there
-                                          # is only one doc, i.e. when
-                                          # running under
-                                          # --small-sample)
-        FromDataFrameNetwork() %>%
-        as.list(mode = "explicit", unname=TRUE,
-                nameName = "id", childrenName = "children") %>%
-        { .$children }
+    .documents %>%
+        left_join(dc$get_converted_documents() %>% as_tibble(),
+                  by = join_by(documentId)) %>%
+        transmute(
+            id = documentId,
+            title,
+            data = outline.document,
+            icon = title %>% first.emoji() %>%
+                replace_na("📒"),
+            url = "/doc/todo-HMxR5dB0ld",
+            parentDocumentId)
 }
 
 transform <- function (archive_path, confluence) {
@@ -103,22 +122,33 @@ transform <- function (archive_path, confluence) {
                 `attachments$documentId` = u$doc_ids(containerContent.Page))
     })
 
-    attachments <- transform.attachments(outline$attachments)
+    dc <- DocumentConverter(
+        outline$documents %>%
+        ## NAs would get sent to Python as the string "NA" 🤦
+        filter(! is.na(body)))
+    transformed.documents <- outline$documents %>%
+        transform.documents(dc)
 
-    documentStructure <- transform.documentStructure(outline$documents)
+    attachments <- transform.attachments(outline$attachments)
 
     meta <- list(
         attachments = attachments %>%
             transform.attachments.meta(),
         collection = list(
-            documentStructure = documentStructure))
+            documentStructure = transformed.documents %>%
+                transform.documentStructure()),
+        documents = transformed.documents %>%
+            split(.$id) %>%
+            map(~ as.list(.x)))
 
     meta.filename <- archive_path %>%
         base::basename() %>%
         str_extract("^(.*?)-[0-9-]*[.]xml[.]zip", group = 1) %>%
         paste0(".json")
 
-    list(attachments = attachments,
+    list(.tmp = list(outline = outline, dc = dc),
+         documents = transformed.documents,
+         attachments = attachments,
          meta = meta,
          meta.filename = meta.filename)
 }
