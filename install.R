@@ -34,7 +34,7 @@ install_from_comments <- function(path = ".", dry_run = TRUE) {
 }
 
 install_python_dependencies <- function() {
-    py.deps = c("stream-zip", "stream-unzip")
+    py.deps = c("stream-zip", "stream-unzip", "lxml")
     py_install(py.deps)
     py_require(py.deps)
 }
