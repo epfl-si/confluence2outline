@@ -199,7 +199,12 @@ extract.confluence <- function(archive_path) {
             tibble(body_id = ns %>% confluence_id) %>%
             mutate(ns %>% props_tibble) %>%
             mutate(body = body %>%
-                       str_replace_all("]] >", "]]>") %>%
+                       ## Fix bogus doubly-encoded CDATA. I saw CDATA's ending in
+                       ## ]] > or ]] ]> in the XML, and from there I surmise that
+                       ## in order to be able to render any string, Confluence®
+                       ## does the converse of this:
+                       str_replace_all("]] ", "]]") %>%
+                       ## Make palatable to lxml:
                        paste0('<confluence-body>', ., '</confluence-body>')) %>%
             mutate(.keep = "unused",
                    type = case_when(
