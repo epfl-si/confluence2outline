@@ -55,13 +55,32 @@ transform.attachments <- function (attachments) {
 transform.attachments.meta <- function (attachments) {
     attachments %>%
         select(id, documentId, contentType = media.type, name = title, size, key) %>%
+        mutate(size = as.character(size),   # Meh.
+                                        # XXX
+               userId = "7e09f00d-dcbd-4ee5-b4de-395703cfe275") %>%
+                                        # /XXX
         split(.$id) %>%
         map(~ as.list(.x))
 }
 
 transform.documentStructure <- function (documents) {
+    ensure.children.even.if.empty <- function(node) {
+        ## Based on empirical evidence in Outline export files, it
+        ## seems that `children` should be an empty array, rather
+        ## than missing altogether:
+        if (! ("children" %in% names(node))) {
+            node$children <- list()
+        } else {
+            node$children <-
+                purrr::map(node$children, ensure.children.even.if.empty)
+        }
+        node
+    }
+
     documents %>%
-        mutate(parent = replace_na(parentDocumentId, "__ROOT__")) %>%
+        transmute(
+            id, url, title, color, icon,
+            parent = replace_na(parentDocumentId, "__ROOT__")) %>%
         relocate(parent, id) %>%  # Parent comes first (to get things
                                   # right in case there is only one
                                   # doc, i.e. when running under
@@ -69,6 +88,7 @@ transform.documentStructure <- function (documents) {
         FromDataFrameNetwork() %>%
         as.list(mode = "explicit", unname=TRUE,
                 nameName = "id", childrenName = "children") %>%
+        ensure.children.even.if.empty() %>%
         { .$children }
 }
 
@@ -82,6 +102,8 @@ DocumentConverter <- function (documents_tibble) {
     DocumentConverter(   # Not this one — The other one (the Python class)
         documents_tibble = documents_tibble)
 }
+
+now.zulu <- strftime(Sys.time(), "%Y-%m-%dT%H:%M:%S.000Z", tz="UTC")
 
 transform.documents <- function (.documents, dc) {
     first.emoji <- function(char_v) {
@@ -97,12 +119,45 @@ transform.documents <- function (.documents, dc) {
                   by = join_by(documentId)) %>%
         transmute(
             id = documentId,
-            title,
+            title = replace_na(title, ""),
             data = outline.document,
+                                        # XXX
+            createdById = "7e09f00d-dcbd-4ee5-b4de-395703cfe275",
+            createdByName = "Nicolas Borboën",
+            createdByEmail = "nicolas.borboen@epfl.ch",
+                                        # /XXX
+            createdAt = now.zulu,
+            updatedAt = now.zulu,
+            publishedAt = now.zulu,
+            fullWidth = FALSE,
+            template = FALSE,
             icon = title %>% first.emoji() %>%
                 replace_na("📒"),
-            url = "/doc/todo-HMxR5dB0ld",
+            color = as.character(NA),
+            url = "/doc/todo-TODOabcd",
+            urlId = "TODOabcd",
             parentDocumentId)
+}
+
+empty.document <- list(type = "doc",
+                       content = list(list(type = "paragraph")))
+
+transform.document.meta <- function(documents) {
+    documents %>%
+        select(-url) %>%
+        split(.$id) %>%
+        map(function(.x) {
+            ret <- as.list(.x)
+            ## ret$data is still a list, which would result in
+            ## a spurious one-element array in the JSON if we
+            ## didn't do this:
+            ret$data <- ret$data[[1]]
+
+            if (is.null(ret$data)) {
+                ret$data <- empty.document
+            }
+            ret
+        })
 }
 
 exclude_unused_attachments <- function(.attachments, dc) {
@@ -158,15 +213,34 @@ transform <- function (archive_path, confluence) {
         exclude_unused_attachments(dc) %>%
         transform.attachments()
 
+    collection.blurb <- empty.document
+
     meta <- list(
         attachments = attachments %>%
             transform.attachments.meta(),
         collection = list(
+            name = "Collection restored from Confluence®",
+                                        # XXX
+            id = "077fde82-7e36-4849-b4e5-a78b9d3feb64",  # TODO: there is a
+                                        # glimmer of hope for server-side
+                                        # merging here.
+            urlId = "82vCJbygJu",
+            sort = list(field = "index", direction = "asc"),
+            index = "1",
+            permission = "read",
+            sharing = TRUE,
+                                        # /XXX
+            createdAt = now.zulu,
+            updatedAt = now.zulu,
+            deletedAt = as.character(NA),
+            archivedAt = as.character(NA),
+            color = as.character(NA),
+            icon = as.character(NA),
+            data = collection.blurb,
             documentStructure = transformed.documents %>%
                 transform.documentStructure()),
         documents = transformed.documents %>%
-            split(.$id) %>%
-            map(~ as.list(.x)))
+            transform.document.meta())
 
     meta.filename <- archive_path %>%
         base::basename() %>%
