@@ -1,19 +1,17 @@
 cmdline <- commandArgs(trailingOnly=TRUE)
 
 if (interactive()) {
-    cmdline <- c(cmdline, "--skip-install", "--skip-zip")
+    cmdline <- c(cmdline, "--skip-zip")
 }
 
 ############################# Make ready #############################
 
 source("install.R")
-if (! ("--skip-install" %in% cmdline)) {
-    install_from_comments(dry_run = FALSE)
-}
-
 source("python.R")
-setup_pyenv()
-if (! ("--skip-install" %in% cmdline)) {
+if (setup_pyenv()$changed) {
+    if (! ("--skip-install" %in% cmdline)) {
+        install_from_comments(dry_run = FALSE)
+    }
     install_python_dependencies()
 }
 

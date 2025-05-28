@@ -2,9 +2,14 @@
 
 setup_pyenv <- function() {
     python.dir <- "./python-venv"
-    if (! virtualenv_exists(python.dir)) {
+
+    install.required <- ! virtualenv_exists(python.dir)
+
+    if (install.required) {
         virtualenv_create(python.dir)
     }
 
     use_virtualenv(python.dir, required = TRUE)
+
+    list(changed = install.required)
 }
