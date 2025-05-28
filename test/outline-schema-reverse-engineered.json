@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema#",
+  "title": "OutlineCollection",
+  "description": "Schema for the JSON files found in an Outline “JSON”-format Zip export. Reverse-engineered from one (1) sample with help from ChatGPT and the `genson` Python library. Public domain",
+  "$defs": {
+
+    "DocumentStructureNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": ["string", "null"]
+        },
+        "color": {
+          "type": ["string", "null"]
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DocumentStructureNode" }
+        }
+      },
+      "required": [ "id", "url", "title", "children" ]
+    },
+
+    "DocumentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "doc"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TopLevelContentNode" }
+        }
+      },
+      "required": [ "type" ]
+    },
+
+    "TopLevelContentNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/TableContentNode" },
+        { "$ref": "#/$defs/CheckboxListContentNode" },
+        { "$ref": "#/$defs/BulletListContentNode" },
+        { "$ref": "#/$defs/OrderedListContentNode" },
+        { "$ref": "#/$defs/HeadingContentNode" },
+        { "$ref": "#/$defs/ParagraphContentNode" }
+      ]
+    },
+
+    "TableContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "table"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "tr"
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [ "td", "th" ]
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": { "$ref": "#/$defs/TopLevelContentNode" }
+                    },
+                    "attrs": { "$ref": "#/$defs/attrs" }
+                  },
+                  "required": [ "type", "content", "attrs" ]
+                }
+              }
+            },
+            "required": [ "type", "content" ]
+          }
+        },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      },
+      "required": [ "type", "content", "attrs" ]
+    },
+
+    "CheckboxListContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "checkbox_list"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "checkbox_item"
+              },
+              "content": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/TopLevelContentNode" }
+              },
+              "attrs": { "$ref": "#/$defs/attrs" }
+            },
+            "required": [ "type", "content", "attrs" ]
+          }
+        }
+      },
+      "required": [ "type", "content" ]
+    },
+
+    "BulletListContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "bullet_list"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ListItemContentNode" }
+        }
+      },
+      "required": [ "type", "content" ]
+    },
+
+    "OrderedListContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ordered_list"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ListItemContentNode" }
+        },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      },
+      "required": [ "type", "content", "attrs" ]
+    },
+
+    "ListItemContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "list_item"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TopLevelContentNode" }
+        }
+      },
+      "required": [ "type", "content" ]
+    },
+
+    "HeadingContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "heading"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SubParagraphContentNode" }
+        },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      },
+      "required": [ "type", "content", "attrs" ]
+    },
+
+    "ParagraphContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "paragraph"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SubParagraphContentNode" }
+        }
+      },
+      "required": [ "type" ],
+      "_comment__required": "`content` is not mandatory; empty placeholder paragraphs are commonly sighted."
+    },
+
+    "SubParagraphContentNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/TextContentNode" },
+        { "$ref": "#/$defs/DisplayInlineContentNodeNoAttributes" },
+        { "$ref": "#/$defs/DisplayInlineContentNodeWithAttributes" }
+      ]
+    },
+
+    "DisplayInlineContentNodeWithAttributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["mention", "image", "TODO: maybe more"]
+        },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      },
+      "required": [ "type", "attrs" ]
+    },
+
+    "DisplayInlineContentNodeNoAttributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["br"]
+        }
+      },
+      "required": [ "type" ]
+    },
+
+    "TextContentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [ "link", "comment", "highlight" ]
+              },
+              "attrs": { "$ref": "#/$defs/attrs" }
+            },
+            "required": [ "type", "attrs" ]
+          }
+        }
+      },
+      "required": [ "type", "text" ]
+    },
+
+    "attrs": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+
+
+  "##########   end of " : " the $defs ###################",
+
+  
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "urlId": { "type": "string" },
+        "name": { "type": "string" },
+        "data": { "$ref": "#/$defs/DocumentNode" },
+        "sort": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "direction": { "type": "string" },
+            "field": { "type": "string" }
+          },
+          "required": [ "direction", "field" ]
+        },
+        "icon": { "type": [ "string", "null" ] },
+        "color": { "type": [ "string", "null" ] },
+        "index": { "type": "string" },
+        "permission": { "type": "string" },
+        "sharing": { "type": "boolean" },
+        "commenting": { "type": [ "boolean", "null" ] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "deletedAt": { "type": ["string", "null"] },
+        "archivedAt": { "type": ["string", "null"] },
+        "documentStructure": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DocumentStructureNode" }
+        }
+      },
+      "required": [
+        "id", "urlId", "name", "data", "sort", "icon", "color", "index",
+        "permission", "sharing",
+        "createdAt", "updatedAt", "deletedAt", "archivedAt",
+        "documentStructure"
+      ]
+    },
+    "documents": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "urlId": { "type": "string" },
+          "title": { "type": "string" },
+          "icon": { "type": [ "string", "null" ] },
+          "color": { "type": [ "string", "null" ] },
+          "data": { "$ref": "#/$defs/DocumentNode" },
+          "createdById": { "type": "string" },
+          "createdByName": { "type": "string" },
+          "createdByEmail": { "type": "string" },
+          "createdAt": { "type": "string" },
+          "updatedAt": { "type": "string" },
+          "publishedAt": { "type": "string" },
+          "fullWidth": { "type": "boolean" },
+          "template": { "type": "boolean" },
+          "parentDocumentId": { "type": [ "string", "null" ] }
+        },
+        "required": [
+          "id", "urlId", "title", "icon", "color", "data",
+          "createdById", "createdByName", "createdByEmail",
+          "createdAt", "updatedAt", "publishedAt",
+          "fullWidth", "template", "parentDocumentId"
+        ]
+      }
+    },
+    "attachments": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "userId": { "type": "string" },
+          "documentId": { "type": "string" },
+          "contentType": { "type": "string" },
+          "name": { "type": "string" },
+          "id": { "type": "string" },
+          "size": { "type": "string" },
+          "key": { "type": "string" }
+        },
+        "required": [ "userId", "documentId", "contentType", "name",
+                      "id", "size", "key" ]
+      }
+    }
+  },
+  "required": [ "collection", "documents", "attachments" ]
+}
