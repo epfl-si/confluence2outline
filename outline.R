@@ -5,36 +5,61 @@
 library(data.tree)
 library(stringr)
 
-deterministic.uuid <- function (char_v, ...) {
-    ## With the `uuid` package, only UUIDs (deterministically) beget
-    ## UUIDs for some reason:
-    namespace <- "6e28e697-bed4-4e50-b6e5-4efc31b478b9"
-    for (salt in rlang::list2(...)) {
-        namespace <- uuid::UUIDfromName(namespace, salt)
+uuidifiers <- function(..., salt) {
+    deterministic.uuid <- function (char_v, ...) {
+        ## With the `uuid` package, only UUIDs (deterministically) beget
+        ## UUIDs for some reason:
+        namespace <- "6e28e697-bed4-4e50-b6e5-4efc31b478b9"
+        for (salt in rlang::list2(...)) {
+            namespace <- uuid::UUIDfromName(namespace, salt)
+        }
+
+        uuid::UUIDfromName(namespace, char_v)
     }
 
-    uuid::UUIDfromName(namespace, char_v)
+    purrr::imap(enquos(...), function (quosure, name) {
+        map <- tibble(from = rlang::eval_tidy(quosure)) %>%
+            mutate(to = deterministic.uuid(from, name, salt))
+        function(from) {
+            stopifnot(all(from[! is.na(from)] %in% map$from))
+            tibble(from) %>%
+                left_join(map, by = join_by(from)) %>%
+                pull(to)
+        }
+    })
 }
 
-transform.attachments <- function (.confluence_attachments, uuid_salt) {
+mutate.list <- function(.data, ...) {
+    dots <- enquos(...)
+    # Actually we want to “dequos” some of them right away, lest
+    # `mutate` think it should create columns named `.keep`:
+    mutate.args.common <-
+        dots[!str_detect(names(dots), fixed("$"))] %>%
+        purrr::map(rlang::eval_tidy)
+    purrr::imap(.data, function(df, df.name) {
+        prefix <- fixed(paste0(df.name, "$"))
+        mutate.scoped <- dots[str_starts(names(dots), prefix)]
+        names(mutate.scoped) <- str_replace(names(mutate.scoped), prefix, "")
+
+        do.call(dplyr::mutate, c(list(df), mutate.args.common, mutate.scoped))
+    })
+}
+
+transform.attachments <- function (attachments) {
     uploads.prefix <- "uploads/restored-from-Confluence"
-    .confluence_attachments %>%
-        mutate(attachment_uuid = deterministic.uuid(attachment_id, "attachment_id", uuid_salt),
-               key = glue::glue("{ uploads.prefix }/{ attachment_uuid }/{ title }")) %>%
-        relocate(attachment_uuid, key) %>%
-        select(-attachment_id)
+    attachments %>%
+        mutate(key = glue::glue("{ uploads.prefix }/{ id }/{ title }")) %>%
+        relocate(key, .after = id)
 }
 
 transform.attachments.meta <- function (attachments) {
     attachments %>%
-        transmute(id = attachment_uuid, documentId = "TODO",
-                  key,
-                  contentType = media.type, size, name = title) %>%
+        select(id, documentId, contentType = media.type, name = title, size, key) %>%
         split(.$id) %>%
         map(~ as.list(.x))
 }
 
-transform.documentStructure <- function (.confluence_pages) {
+transform.documentStructure <- function (documents) {
     first.emoji <- function(char_v) {
         match.emoji <- paste0(
             "(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic})",
@@ -43,18 +68,18 @@ transform.documentStructure <- function (.confluence_pages) {
         char_v %>% str_extract(match.emoji)
     }
 
-    .confluence_pages %>%
+    documents %>%
         mutate(.keep="none",
-               id = page_id, parent = replace_na(parent.Page, "__ROOT__"),
+               documentId, parent = replace_na(parentDocumentId, "__ROOT__"),
                title,
                icon = title %>% first.emoji() %>%
                    replace_na("📒"),
                url = "/doc/todo-HMxR5dB0ld") %>%
-        relocate(parent, id) %>%        # Parent comes first (to get
-                                        # things right in case there
-                                        # is only one doc, i.e. when
-                                        # running under
-                                        # --small-sample)
+        relocate(parent, documentId) %>%  # Parent comes first (to get
+                                          # things right in case there
+                                          # is only one doc, i.e. when
+                                          # running under
+                                          # --small-sample)
         FromDataFrameNetwork() %>%
         as.list(mode = "explicit", unname=TRUE,
                 nameName = "id", childrenName = "children") %>%
@@ -62,10 +87,25 @@ transform.documentStructure <- function (.confluence_pages) {
 }
 
 transform <- function (archive_path, confluence) {
-    attachments <- transform.attachments(confluence$attachments, uuid_salt = archive_path)
+    outline <- local({
+        u <- uuidifiers("doc_ids" = confluence$pages$page_id,
+                        "attch_ids" = confluence$attachments$attachment_id,
+                        salt = archive_path)
 
-    documentStructure <-  confluence$pages %>%
-        transform.documentStructure()
+        list(documents = confluence$pages,
+             attachments = confluence$attachments) %>%
+            mutate(    # using `mutate.list`, above
+                .keep="unused", .before = 1,
+                `documents$documentId` = u$doc_ids(page_id),
+                `documents$parentDocumentId` = u$doc_ids(parent.Page),
+                `documents$latest.version` = u$doc_ids(latest.version),
+                `attachments$id` = u$attch_ids(attachment_id),
+                `attachments$documentId` = u$doc_ids(containerContent.Page))
+    })
+
+    attachments <- transform.attachments(outline$attachments)
+
+    documentStructure <- transform.documentStructure(outline$documents)
 
     meta <- list(
         attachments = attachments %>%
