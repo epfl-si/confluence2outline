@@ -27,6 +27,9 @@ if (setup_pyenv()$changed) {
         install_from_comments(dry_run = FALSE)
     }
     install_python_dependencies()
+    if (interactive()) {
+        install_python_dev_dependencies()
+    }
 }
 
 ############################## Extract ###############################
