@@ -40,5 +40,7 @@ install_python_dependencies <- function() {
 }
 
 install_python_dev_dependencies <- function() {
-    # Nothing here for now
+    py.deps = c("jsonschema")
+    py_install(py.deps)
+    py_require(py.deps)
 }
