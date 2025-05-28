@@ -38,3 +38,7 @@ install_python_dependencies <- function() {
     py_install(py.deps)
     py_require(py.deps)
 }
+
+install_python_dev_dependencies <- function() {
+    # Nothing here for now
+}
