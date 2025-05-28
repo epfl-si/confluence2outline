@@ -50,6 +50,14 @@ outline <- transform(archive_path, confluence)
 outline_json <- outline$meta %>%
     jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
 
+############################ Test more ###############################
+
+if (interactive()) {
+    source_python("test/schema.py")
+    stopifnot("outline$meta matches the Outline JSON schema" =
+                  validate_json_outline(outline_json))
+}
+
 ############################### Load #################################
 
 if ("--skip-zip" %in% cmdline) {
