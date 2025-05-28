@@ -1,0 +1,259 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "title": "OutlineCollection",
+  "type": "object",
+  "description": "Schema for the JSON files found in an Outline “JSON”-format Zip export. Reverse-engineered from one (1) sample with help from ChatGPT and the `genson` Python library. Public domain",
+  "$defs": {
+    "documentNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": ["string", "null"]
+        },
+        "color": {
+          "type": ["string", "null"]
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/documentNode" }
+        }
+      },
+      "required": [
+        "children",
+        "id",
+        "title",
+        "url"
+      ]
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "urlId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": ["string", "null"]
+        },
+        "color": {
+          "type": ["string", "null"]
+        },
+        "data": { "$ref": "#/$defs/contentNode" },
+        "createdById": {
+          "type": "string"
+        },
+        "createdByName": {
+          "type": "string"
+        },
+        "createdByEmail": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "publishedAt": {
+          "type": "string"
+        },
+        "fullWidth": {
+          "type": "boolean"
+        },
+        "template": {
+          "type": "boolean"
+        },
+        "parentDocumentId": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": [
+        "color",
+        "createdAt",
+        "createdByEmail",
+        "createdById",
+        "createdByName",
+        "data",
+        "fullWidth",
+        "icon",
+        "id",
+        "parentDocumentId",
+        "publishedAt",
+        "template",
+        "title",
+        "updatedAt",
+        "urlId"
+      ]
+    },
+    "attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "documentId": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contentType",
+        "documentId",
+        "id",
+        "key",
+        "name",
+        "size",
+        "userId"
+      ]
+    },
+    "contentNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contentNode" }
+        }
+      },
+      "required": [
+        "type"
+      ]
+    }
+  },
+  "required": [
+    "attachments",
+    "collection",
+    "documents"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "urlId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "data": { "$ref": "#/$defs/contentNode" },
+        "sort": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "direction": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "direction",
+            "field"
+          ]
+        },
+        "icon": {
+          "type": ["string", "null"]
+        },
+        "color": {
+          "type": ["string", "null"]
+        },
+        "index": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string"
+        },
+        "sharing": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "deletedAt": {
+          "type": ["string", "null"]
+        },
+        "archivedAt": {
+          "type": ["string", "null"]
+        },
+        "documentStructure": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/documentNode" }
+        }
+      },
+      "required": [
+        "archivedAt",
+        "color",
+        "createdAt",
+        "data",
+        "deletedAt",
+        "documentStructure",
+        "icon",
+        "id",
+        "index",
+        "name",
+        "permission",
+        "sharing",
+        "sort",
+        "updatedAt",
+        "urlId"
+      ]
+    },
+    "documents": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "additionalProperties": { "$ref" : "#/$defs/document" }
+    },
+    "attachments": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "additionalProperties": { "$ref" : "#/$defs/attachment" }
+    }
+  }
+}
