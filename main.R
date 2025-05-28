@@ -65,18 +65,18 @@ outline_json <- outline$meta %>%
 
 ############################ Test more ###############################
 
+outline_json %>%
+    write(outline$meta.filename)
+
 if (interactive()) {
     source_python("test/schema.py")
     stopifnot("outline$meta matches the Outline JSON schema" =
-                  validate_json_outline(outline_json))
+                  validate_json_outline_file(outline$meta.filename))
 }
 
 ############################### Load #################################
 
-if (! is.null(opts$`skip-zip`)) {
-    outline_json %>%
-        write(outline$meta.filename)
-} else {
+if (is.null(opts$`skip-zip`)) {
     source_python("zip-streams.py")
     zip.from <- ZipSource(archive_path)
     zip.to <- ifelse(is.null(opts$`small-sample`),
