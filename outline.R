@@ -1,22 +1,53 @@
 # install.packages("glue")
 # install.packages("uuid")
 
-# confluence.R provides attachments
+deterministic.uuid <- function (char_v, ...) {
+    ## With the `uuid` package, only UUIDs (deterministically) beget
+    ## UUIDs for some reason:
+    namespace <- "6e28e697-bed4-4e50-b6e5-4efc31b478b9"
+    for (salt in rlang::list2(...)) {
+        namespace <- uuid::UUIDfromName(namespace, salt)
+    }
 
-outline.attachments <- {
-    attachment.salt <- "6e28e697-bed4-4e50-b6e5-4efc31b478b9"
+    uuid::UUIDfromName(namespace, char_v)
+}
+
+transform.attachments <- function (.confluence_attachments, uuid_salt) {
     uploads.prefix <- "uploads/restored-from-Confluence"
-    attachments %>%
-        mutate(attachment_uuid = uuid::UUIDfromName(attachment.salt, confluence_zip_path),
+    .confluence_attachments %>%
+        mutate(attachment_uuid = deterministic.uuid(attachment_id, "attachment_id", uuid_salt),
                key = glue::glue("{ uploads.prefix }/{ attachment_uuid }/{ title }")) %>%
         relocate(attachment_uuid, key) %>%
         select(-attachment_id)
 }
 
-outline.attachments.meta <-
-    outline.attachments %>%
-    transmute(id = attachment_uuid, documentId = "TODO",
-              key,
-              contentType = media.type, size, name = title) %>%
-    split(.$id) %>%
-    map(~ as.list(.x))
+transform.attachments.meta <- function (attachments) {
+    attachments %>%
+        transmute(id = attachment_uuid, documentId = "TODO",
+                  key,
+                  contentType = media.type, size, name = title) %>%
+        split(.$id) %>%
+        map(~ as.list(.x))
+}
+
+transform <- function (archive_path, confluence) {
+    attachments <- transform.attachments(confluence$attachments, uuid_salt = archive_path)
+
+    list(attachments = attachments,
+         meta = list(attachments = attachments %>%
+                         transform.attachments.meta()))
+}
+
+rewrite.attachments <- function (.attachments, zip.from, zip.to) {
+    attachments.indexed <- .attachments %>%
+        split(.$confluence_zip_path)
+    zip.from$files() %>%
+        iterate(function(zip.file) {
+            attachment <- attachments.indexed[[zip.file$path]]
+            if (length(attachment)) {
+                as_filename <- attachment$key
+                print(as_filename)
+                zip.to$add(zip.file, as_filename = as_filename)
+            }
+        })
+}

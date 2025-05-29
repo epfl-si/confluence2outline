@@ -27,42 +27,31 @@ if (is_null(opts$`skip-install`)) {
 
 ############################## Extract ###############################
 
+archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 source("confluence.R")
+confluence <- extract.confluence(archive_path = archive_path)
 
 ############################### Test #################################
 
 test.page <-
-    pages %>%
+    confluence$pages %>%
     filter(is.latest &
            str_detect(body, "quasi-services"))
 
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
-########################## Transform, Load ###########################
+############################ Transform ###############################
 
 source("outline.R")
+outline <- transform(archive_path, confluence)
+
+############################### Load #################################
 
 source_python("zip-streams.py")
 zip.from <- ZipSource(archive_path)
 zip.to <- ZipSink("outline.zip")
-{
-    attachments_ETL <- outline.attachments %>%
-        split(.$confluence_zip_path)
-    zip.from$files() %>%
-        iterate(function(zip.file) {
-            attachment <- attachments_ETL[[zip.file$path]]
-            if (length(attachment)) {
-                as_filename <- attachment$key
-                print(as_filename)
-                zip.to$add(zip.file, as_filename = as_filename)
-            }
-        })
-}
-
-metadata.zip_filename <- "ISAS-FSD.json"
-
-list(attachments = outline.attachments.meta) %>%
+rewrite.attachments(outline$attachments, zip.from, zip.to)
+outline$meta %>%
     jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) %>%
-    zip.to$add(as_filename = metadata.zip_filename)
-
+    zip.to$add(as_filename = "ISAS-FSD.json")
 zip.to$close()
