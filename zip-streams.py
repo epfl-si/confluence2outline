@@ -7,7 +7,7 @@ from stat import S_IFREG
 from functools import cached_property
 
 from stream_unzip import stream_unzip
-from stream_zip import ZIP_64, stream_zip
+from stream_zip import ZIP_32, stream_zip
 
 
 class ZipSource:
@@ -61,7 +61,7 @@ class ZipSink:
         else:
             chunks = zip_file_or_text.chunks
 
-        self._queue.put((t_filename, self._timestamp, S_IFREG | 0o600, ZIP_64,
+        self._queue.put((t_filename, self._timestamp, S_IFREG | 0o600, ZIP_32,
                          chunks))
         self._queue.join()
 
