@@ -63,7 +63,26 @@ test.page <-
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
 if (! is.null(opts$`small-sample`)) {
-    confluence$pages <- test.page
+    confluence$pages <- local({
+        restricted.pages <- sample_frac(confluence$pages, 0.2)
+        if (! (test.page$page_id %in% restricted.pages$page_id)) {
+            restricted.pages <- restricted.pages %>%
+                bind_rows(test.page)
+        }
+        sans_na <- function(vec) { vec[! is.na(vec)] }
+
+        while(! all( (restricted.pages$parent.Page %>% sans_na())
+                    %in% restricted.pages$page_id ) )
+        {
+            print(glue::glue("Completing parents of { nrow(restricted.pages) } rows"))
+            restricted.pages <-
+                confluence$pages %>%
+                filter(page_id %in% c(
+                                        restricted.pages$page_id,
+                                        restricted.pages$parent.Page %>% sans_na()))
+        }
+        restricted.pages
+    })
     confluence$attachments <- confluence$attachments %>%
         weed_unused_attachments(confluence$pages)
 }
