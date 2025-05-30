@@ -107,13 +107,26 @@ class DocumentConverter:
         self.documents = [
             _Document(self, *args)
             for args in zip(flatten(documents_tibble["documentId"]),
+                            flatten(documents_tibble["latest.version"]),
                             flatten(documents_tibble["body"]))
-            if args[1] is not None]
+            if args[2] is not None]
 
     def get_converted_documents (self):
         return { "documentId": [d.uuid for d in self.documents],
                  "outline.document": [PythonStruct(self.process(d))
                                       for d in self.documents] }
+
+    def list_attachments (self):
+        ret = {"latest.version": [], "documentId": [], "filename": []}
+
+        for d in self.documents:
+            filenames = self._get_attachment_filenames(d)
+            if len(filenames):
+                ret["documentId"].append(d.uuid)
+                ret["latest.version"].append(d.latest_version_uuid)
+                ret["filename"].append(filenames)
+
+        return ret
 
     def process (self, doc):
         return {
@@ -121,9 +134,13 @@ class DocumentConverter:
             "content": Template().apply_templates(doc.etree.getchildren())
         }
 
+    def _get_attachment_filenames (self, d):
+        return list(flatten(d.etree.xpath("//ri:attachment/@ri:filename")))
+
 
 class _Document(collections.namedtuple("Document",
-                                       ("converter", "uuid", "body"))):
+                                       ("converter", "uuid",
+                                        "latest_version_uuid", "body"))):
     """An lxml document, with Confluence-specific namespaces baked in."""
 
     @cached_property
@@ -224,5 +241,7 @@ if __name__ == "__main__" and os.getenv("R_SESSION_INITIALIZED") is None:
     conv = DocumentConverter(
         documents_tibble =
         {'documentId': ['77767cc0-c4ed-4688-b61c-c2aebf7e3218'],
+         'latest.version': ['77767cc0-c4ed-4688-b61c-c2aebf7e3218'],
          'body': [ open('test/data/services-etc.xml').read() ] })
     print(conv.get_converted_documents())
+    print(conv.list_attachments())

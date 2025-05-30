@@ -105,6 +105,30 @@ transform.documents <- function (.documents, dc) {
             parentDocumentId)
 }
 
+exclude_unused_attachments <- function(.attachments, dc) {
+    ## Most attachments get copied with their parent page, and go
+    ## unused as one edits the copy!! Yet they still end up in the Zip
+    ## export somehow!
+    seen.attachments <-
+        dc$list_attachments() %>%
+        as_tibble() %>%
+        unnest_longer(filename) %>%
+        ## As seen in confluence.R, attachments always belong to the
+        ## latest version of a page:
+        distinct(latest.version, filename)
+
+    ## TODO: this filtering is still sub-optimal! Attachments have
+    ## versions too; however, the `ri:filename` attributes in HTML
+    ## pages reference them (you gueessed it) by name, without
+    ## stipulating a version. I don't know at this point how (or
+    ## indeed whether) Confluence picks a particular version for
+    ## attachments while rendering a page.
+    .attachments %>%
+        inner_join(seen.attachments,
+                   by = join_by(documentId == latest.version,
+                                title == filename))
+}
+
 transform <- function (archive_path, confluence) {
     outline <- local({
         u <- uuidifiers("doc_ids" = confluence$pages$page_id,
@@ -129,7 +153,10 @@ transform <- function (archive_path, confluence) {
     transformed.documents <- outline$documents %>%
         transform.documents(dc)
 
-    attachments <- transform.attachments(outline$attachments)
+    attachments <-
+        outline$attachments %>%
+        exclude_unused_attachments(dc) %>%
+        transform.attachments()
 
     meta <- list(
         attachments = attachments %>%
