@@ -326,9 +326,22 @@ extract.confluence <- function(archive_path) {
                                     pull(version)) %>%
                       filter(last != original)  %>%
                       nrow == 0)
-        attachments_and_types %>%
+
+        attachments <-
+            attachments_and_types %>%
             rename(is.latest = is.original,
                    latest.attachment_id = originalAttachmentId)
+
+        stopifnot(
+            "Attachments always belong to the latest version of a page" =
+                attachments %>%
+                left_join(pages,
+                          by = join_by(containerContent.Page == page_id),
+                          suffix = c(".page", ".attachment")) %>%
+                filter(! is.latest.attachment) %>%
+                nrow == 0)
+
+        attachments
     })
 
     list(entities_xml = entities_xml,
