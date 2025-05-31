@@ -168,7 +168,8 @@ transform.documents <- function (.documents, dc) {
             parentDocumentId)
 }
 
-empty.paragraph <- list(type = "paragraph")
+empty.document <- list(type = "doc",
+                       content = list(list(type = "paragraph")))
 
 transform.document.meta <- function(documents) {
     documents %>%
@@ -182,7 +183,7 @@ transform.document.meta <- function(documents) {
             ret$data <- ret$data[[1]]
 
             if (is.null(ret$data)) {
-                ret$data <- empty.paragraph
+                ret$data <- empty.document
             }
             ret
         })
@@ -243,8 +244,7 @@ transform <- function (archive_path, confluence) {
         exclude_unused_attachments(dc) %>%
         transform.attachments()
 
-    collection.blurb <- list(type = "doc",
-                             content = list(empty.paragraph))
+    collection.blurb <- empty.document
 
     meta <- list(
         attachments = attachments %>%
