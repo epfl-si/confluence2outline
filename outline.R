@@ -1,6 +1,8 @@
 # install.packages("glue")
 # install.packages("uuid")
 # install.packages("data.tree")
+# install.packages("stringi")
+# install.packages("digest")
 
 library(data.tree)
 library(stringr)
@@ -28,6 +30,23 @@ uuidifiers <- function(..., salt) {
         }
     })
 }
+
+urlIds <- local({
+    counter <- 0L
+
+    list(
+        seed = function(text) {
+            digest::digest(text, algo = "xxhash32", serialize = FALSE) %>%
+                strtoi(base = 16) %>%
+                { counter <<- . }
+        },
+        get = function(how_many) {
+            counter <<- counter + 1L
+            withr::with_seed(counter, {
+                stringi::stri_rand_strings(how_many, 10)
+            })
+        })
+})
 
 mutate.list <- function(.data, ...) {
     dots <- enquos(...)
@@ -114,9 +133,19 @@ transform.documents <- function (.documents, dc) {
         char_v %>% str_extract(match.emoji)
     }
 
+    urlify <- function (words) {
+        tolower(words) %>%
+            str_replace_all('[^A-Za-z]+', '-') %>%
+            str_replace('^-', '') %>%
+            str_replace('-$', '')
+    }
+
     .documents %>%
         left_join(dc$get_converted_documents() %>% as_tibble(),
                   by = join_by(documentId)) %>%
+        mutate(url.stem =
+                   ifelse(is.na(title), "untitled", title) %>%
+                   urlify()) %>%
         transmute(
             id = documentId,
             title = replace_na(title, ""),
@@ -134,8 +163,8 @@ transform.documents <- function (.documents, dc) {
             icon = title %>% first.emoji() %>%
                 replace_na("📒"),
             color = as.character(NA),
-            url = "/doc/todo-TODOabcd",
-            urlId = "TODOabcd",
+            urlId = urlIds$get(n()),
+            url = paste0("/doc/", url.stem, "-", urlId),
             parentDocumentId)
 }
 
@@ -185,6 +214,8 @@ exclude_unused_attachments <- function(.attachments, dc) {
 }
 
 transform <- function (archive_path, confluence) {
+    urlIds$seed(archive_path)
+
     outline <- local({
         u <- uuidifiers("doc_ids" = confluence$pages$page_id,
                         "attch_ids" = confluence$attachments$attachment_id,
@@ -220,11 +251,11 @@ transform <- function (archive_path, confluence) {
             transform.attachments.meta(),
         collection = list(
             name = "Collection restored from Confluence®",
+            urlId = urlIds$get(1),
                                         # XXX
             id = "077fde82-7e36-4849-b4e5-a78b9d3feb64",  # TODO: there is a
                                         # glimmer of hope for server-side
                                         # merging here.
-            urlId = "82vCJbygJu",
             sort = list(field = "index", direction = "asc"),
             index = "1",
             permission = "read",
