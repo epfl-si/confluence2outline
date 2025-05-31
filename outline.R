@@ -246,11 +246,15 @@ transform <- function (archive_path, confluence) {
 
     collection.blurb <- empty.document
 
+    meta.filename.stem <- archive_path %>%
+        base::basename() %>%
+        str_extract("^(.*?)-[0-9-]*[.]xml[.]zip", group = 1)
+
     meta <- list(
         attachments = attachments %>%
             transform.attachments.meta(),
         collection = list(
-            name = "Collection restored from Confluence®",
+            name = meta.filename.stem,
             urlId = urlIds$get(1),
                                         # XXX
             id = "077fde82-7e36-4849-b4e5-a78b9d3feb64",  # TODO: there is a
@@ -272,15 +276,10 @@ transform <- function (archive_path, confluence) {
         documents = outline$documents %>%
             transform.document.meta())
 
-    meta.filename <- archive_path %>%
-        base::basename() %>%
-        str_extract("^(.*?)-[0-9-]*[.]xml[.]zip", group = 1) %>%
-        paste0(".json")
-
     rlang::env(documents = outline$documents,
                attachments = attachments,
                meta = meta,
-               meta.filename = meta.filename)
+               meta.filename = paste0(meta.filename.stem, ".json"))
 }
 
 rewrite.attachments <- function (.attachments, zip.from, zip.to) {
