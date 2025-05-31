@@ -24,8 +24,10 @@ archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-
 source("confluence.R")
 confluence <- extract.confluence(archive_path = archive_path)
 
-confluence_orig <- list(pages = confluence$pages,
-                        attachments = confluence$attachments)
+confluence_everything <- list(pages = confluence$pages,
+                              attachments = confluence$attachments)
+
+confluence$pages <- confluence$pages %>% filter(is.latest)
 
 ############################### Test #################################
 
@@ -34,14 +36,13 @@ o <- load.outline("import-Outline/ISAS-FSD-export.json.zip")
 
 test.page <-
     confluence$pages %>%
-    filter(is.latest &
-           str_detect(body, "quasi-services"))
+    filter(str_detect(body, "quasi-services"))
 
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
 if ("--small-sample" %in% cmdline) {
     confluence$pages <- local({
-        restricted.pages <- sample_frac(confluence$pages, 0.05)
+        restricted.pages <- test.page
         if (! (test.page$page_id %in% restricted.pages$page_id)) {
             restricted.pages <- restricted.pages %>%
                 bind_rows(test.page)
