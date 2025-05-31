@@ -60,6 +60,6 @@ if ("--skip-zip" %in% cmdline) {
         ZipSink()
     rewrite.attachments(outline$attachments, zip.from, zip.to)
     outline_json %>%
-        zip.to$add(as_filename = "ISAS-FSD.json")
+        zip.to$add(as_filename = outline$meta.filename)
     zip.to$close()
 }
