@@ -54,6 +54,10 @@ if ("--small-sample" %in% cmdline) {
         weed_unused_attachments(confluence$pages)
 }
 
+if ("--skip-attachments" %in% cmdline) {
+    confluence$attachments <- confluence$attachments %>% filter(FALSE)
+}
+
 ############################ Transform ###############################
 
 source("outline.R")
@@ -82,7 +86,9 @@ if (! ("--skip-zip" %in% cmdline)) {
                      "outline-SMALL.zip",
                      "outline.zip") %>%
         ZipSink()
-    rewrite.attachments(outline$attachments, zip.from, zip.to)
+    if (! ("--skip-attachments" %in% cmdline)) {
+        rewrite.attachments(outline$attachments, zip.from, zip.to)
+    }
     outline_json %>%
         zip.to$add(as_filename = outline$meta.filename)
     zip.to$close()
