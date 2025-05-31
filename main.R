@@ -37,6 +37,19 @@ if (setup_pyenv()$changed) {
 source("confluence.R")
 confluence <- extract.confluence(archive_path = archive_path)
 
+confluence_everything <- list(pages = confluence$pages,
+                              attachments = confluence$attachments)
+
+confluence$pages <- confluence$pages %>% filter(is.latest & contentStatus == "current")
+
+weed_unused_attachments <- function (attachments, pages) {
+    attachments %>%
+        filter(containerContent.Page %in% pages$page_id)
+}
+
+confluence$attachments <- confluence$attachments %>%
+    weed_unused_attachments(confluence$pages)
+
 ############################### Test #################################
 
 source("tests.R")
@@ -44,15 +57,14 @@ o <- load.outline("import-Outline/ISAS-FSD-export.json.zip")
 
 test.page <-
     confluence$pages %>%
-    filter(is.latest &
-           str_detect(body, "quasi-services"))
+    filter(str_detect(body, "quasi-services"))
 
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
 if (! is.null(opts$`small-sample`)) {
     confluence$pages <- test.page
     confluence$attachments <- confluence$attachments %>%
-        filter(containerContent.Page == test.page$page_id)
+        weed_unused_attachments(confluence$pages)
 }
 
 ############################ Transform ###############################
