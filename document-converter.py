@@ -54,16 +54,20 @@ class Template__default (Template):
         return True
 
     def apply (self, element):
-        return {"type": "text", "text": f"(? Unable to translate {element.tag})"}
+        return Template_p.paragraph_of_text(f"(? Unable to translate {element.tag})")
 
 
 class Template_p (Template):
     tag = "p"
 
+    @classmethod
+    def paragraph_of_text (cls, text):
+        return { "type": "paragraph", "content": [{"type":"text","text": text}] }
+
     def apply (self, element):
         texts = element.xpath(".//text()")
         if texts:
-            return {"type":"text","text": "".join(texts)}
+            return self.paragraph_of_text(" ".join(texts))
         else:
             return []
 
