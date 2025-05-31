@@ -9,6 +9,7 @@ if (interactive()) {
 } else {
     opts <- matrix(byrow=TRUE, ncol=4, c(
       "from"               , NA, 2, "character",
+      "skip-attachments"   , NA, 0, "logical",
       "skip-install"       , NA, 0, "logical",
       "skip-zip"           , NA, 0, "logical",
       "small-sample"       , NA, 0, "logical"
@@ -67,6 +68,10 @@ if (! is.null(opts$`small-sample`)) {
         weed_unused_attachments(confluence$pages)
 }
 
+if (! is.null(opts$`skip-attachments`)) {
+    confluence$attachments <- confluence$attachments %>% filter(FALSE)
+}
+
 ############################ Transform ###############################
 
 source("outline.R")
@@ -95,7 +100,9 @@ if (is.null(opts$`skip-zip`)) {
                  "outline.zip",
                  "outline-SMALL.zip") %>%
         ZipSink()
-    rewrite.attachments(outline$attachments, zip.from, zip.to)
+    if (is.null(opts$`skip-attachments`)) {
+        rewrite.attachments(outline$attachments, zip.from, zip.to)
+    }
     outline_json %>%
         zip.to$add(as_filename = outline$meta.filename)
     zip.to$close()
