@@ -24,6 +24,9 @@ archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-
 source("confluence.R")
 confluence <- extract.confluence(archive_path = archive_path)
 
+confluence_orig <- list(pages = confluence$pages,
+                        attachments = confluence$attachments)
+
 ############################### Test #################################
 
 source("tests.R")
@@ -37,10 +40,8 @@ test.page <-
 test.page %>% pull(body) %>% write("test/data/services-etc.xml")
 
 if ("--small-sample" %in% cmdline) {
-    confluence_orig <- list(pages = confluence$pages,
-                            attachments = confluence$attachments)
     confluence$pages <- local({
-        restricted.pages <- sample_frac(confluence$pages, 0.2)
+        restricted.pages <- sample_frac(confluence$pages, 0.05)
         if (! (test.page$page_id %in% restricted.pages$page_id)) {
             restricted.pages <- restricted.pages %>%
                 bind_rows(test.page)
@@ -67,6 +68,10 @@ if ("--small-sample" %in% cmdline) {
     })
     confluence$attachments <- confluence$attachments %>%
         filter(containerContent.Page %in% confluence$pages$page_id)
+}
+
+if (! ("--skip-attachments" %in% cmdline)) {
+    confluence$attachments <- confluence$attachments %>% filter(FALSE)
 }
 
 ############################ Transform ###############################
@@ -97,7 +102,9 @@ if (! ("--skip-zip" %in% cmdline)) {
                      "outline-SMALL.zip",
                      "outline.zip") %>%
         ZipSink()
-    rewrite.attachments(outline$attachments, zip.from, zip.to)
+    if (! ("--skip-attachments" %in% cmdline)) {
+        rewrite.attachments(outline$attachments, zip.from, zip.to)
+    }
     outline_json %>%
         zip.to$add(as_filename = outline$meta.filename)
     zip.to$close()
