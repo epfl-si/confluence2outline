@@ -82,6 +82,38 @@ transform.attachments.meta <- function (attachments) {
         map(~ as.list(.x))
 }
 
+make.like.a.tree <- function (.df, id_col, parent_col) {
+    parse_col_expr <- function(expr) {
+        if (rlang::is_symbol(expr)) {
+            list(minused = FALSE, sym = expr)
+        } else if (rlang::is_call(expr, "-") && length(expr) == 2 && rlang::is_symbol(expr[[2]])) {
+            list(minused = TRUE, sym = expr[[2]])
+        } else {
+            stop("Unsupported expression. Only symbols or unary minus are supported.")
+        }
+    }
+
+    id_col <- parse_col_expr(enexpr(id_col))
+    parent_col <- parse_col_expr(enexpr(parent_col))
+
+    and_leave <- .df %>%
+        mutate(._parent = replace_na(!!parent_col$sym, "__ROOT__"),
+               ._id = !!id_col$sym) %>%
+        relocate(._parent, ._id)  # Parent comes first (to get things
+                                  # right in case there is only one
+                                  # row, i.e. when running under
+                                  # --small-sample)
+    if (id_col$minused) {
+        and_leave <- and_leave %>% select(-!!id_col$sym)
+    }
+    if (parent_col$minused) {
+        and_leave <- and_leave %>% select(-!!parent_col$sym)
+    }
+
+    and_leave %>%
+        FromDataFrameNetwork()
+}
+
 transform.documentStructure <- function (documents) {
     ensure.children.even.if.empty <- function(node) {
         ## Based on empirical evidence in Outline export files, it
@@ -97,14 +129,8 @@ transform.documentStructure <- function (documents) {
     }
 
     documents %>%
-        transmute(
-            id, url, title, color, icon,
-            parent = replace_na(parentDocumentId, "__ROOT__")) %>%
-        relocate(parent, id) %>%  # Parent comes first (to get things
-                                  # right in case there is only one
-                                  # doc, i.e. when running under
-                                  # --small-sample)
-        FromDataFrameNetwork() %>%
+        select(id, parentDocumentId, url, title, color, icon) %>%
+        make.like.a.tree(id, -parentDocumentId) %>%
         as.list(mode = "explicit", unname=TRUE,
                 nameName = "id", childrenName = "children") %>%
         ensure.children.even.if.empty() %>%
