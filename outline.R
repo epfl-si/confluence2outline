@@ -148,6 +148,21 @@ DocumentConverter <- function (documents_tibble) {
         documents_tibble = documents_tibble)
 }
 
+topo_sort <- function (.df, id_col, parent_col) {
+    id_col <- ensym(id_col)
+    parent_col <- ensym(parent_col)
+
+    order <- .df %>%
+        select(-position) %>%   # Meh — NODE_RESERVED_NAMES_CONST is a tad prudish?
+        make.like.a.tree(-!!id_col, -!!parent_col) %>%
+        { .$Get(function(node) {}) } %>%
+        tibble(id = names(.)) %>%
+        filter(id != "__ROOT__")
+
+    .df %>%
+        arrange(match(!!id_col, order$id))
+}
+
 now.zulu <- strftime(Sys.time(), "%Y-%m-%dT%H:%M:%S.000Z", tz="UTC")
 
 transform.documents <- function (.documents, dc) {
@@ -200,7 +215,8 @@ empty.document <- list(type = "doc",
 transform.document.meta <- function(documents) {
     documents %>%
         select(-url) %>%
-        split(.$id) %>%
+        split(factor(.$id, levels = .$id)) %>%     # Preserves order (by smuggling it inside
+                                                   # the factor levels)
         map(function(.x) {
             ret <- as.list(.x)
             ## ret$data is still a list, which would result in
@@ -247,7 +263,9 @@ transform <- function (archive_path, confluence) {
                         "attch_ids" = confluence$attachments$attachment_id,
                         salt = archive_path)
 
-        list(documents = confluence$pages,
+        list(documents =
+                 confluence$pages %>%
+                 topo_sort(page_id, parent.Page),
              attachments = confluence$attachments) %>%
             mutate(    # using `mutate.list`, above
                 .keep="unused", .before = 1,
