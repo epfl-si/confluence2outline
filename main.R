@@ -5,11 +5,14 @@ library(tidyverse)
 
 if (interactive()) {
     opts <- list("skip-install" = TRUE)
+    archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 } else {
     opts <- matrix(byrow=TRUE, ncol=4, c(
+      "from"               , NA, 2, "character",
       "skip-install"       , NA, 0, "logical"
-    )) %>%
-        getopt::getopt()
+    ))
+    opts <- getopt::getopt(opts)
+    archive_path <- opts$from
 }
 
 ############################# Make ready #############################
@@ -27,7 +30,6 @@ if (is_null(opts$`skip-install`)) {
 
 ############################## Extract ###############################
 
-archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 source("confluence.R")
 confluence <- extract.confluence(archive_path = archive_path)
 
