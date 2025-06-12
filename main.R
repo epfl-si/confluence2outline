@@ -4,7 +4,7 @@
 library(tidyverse)
 
 if (interactive()) {
-    opts <- list("skip-install" = TRUE)
+    opts <- list()
     archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 } else {
     opts <- matrix(byrow=TRUE, ncol=4, c(
@@ -20,13 +20,12 @@ if (interactive()) {
 ############################# Make ready #############################
 
 source("install.R")
-if (is.null(opts$`skip-install`)) {
-    install_from_comments(dry_run = FALSE)
-}
-
 source("python.R")
-setup_pyenv()
-if (is_null(opts$`skip-install`)) {
+
+if (setup_pyenv()$changed) {
+    if (is.null(opts$`skip-install`)) {
+        install_from_comments(dry_run = FALSE)
+    }
     install_python_dependencies()
 }
 
