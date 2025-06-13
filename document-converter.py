@@ -76,6 +76,23 @@ def returns_blocks (method):
 
     return wrapped
 
+def returns_block_of_blocks (method):
+    """Method decorator for `apply` that enforces that it return
+    a single block object, in which all sub-objects in `contents`
+    are themselves block objects.
+    """
+
+    @wraps(method)
+    def wrapped (self, element):
+        retval = method(self, element)
+        if is_outline_inline(retval):
+            raise TypeError(f"Bad {method.__qualname__} return value: {retval}")
+        if "content" in retval:
+            retval["content"] = as_outline_blocks(retval["content"])
+        return retval
+
+    return wrapped
+
 
 def is_outline_inline (transformed):
     """Sorry, couldn't resist."""
@@ -197,12 +214,12 @@ class DocumentTemplate (Template):
         """Explicit construction only."""
         return False
 
-    @returns_block
+    @returns_block_of_blocks
     def apply (self, document):
         return {
             "type": "doc",
-            "content": as_outline_blocks(self.apply_templates(
-                document.xpath("./node()")))
+            "content": self.apply_templates(
+                document.xpath("./node()"))
         }
 
 
@@ -376,7 +393,7 @@ class Template__tr (Template):
 
 
 class TableCellTemplate (Template):
-    @returns_block
+    @returns_block_of_blocks
     def apply (self, element):
         attrs = {"colspan":1,"rowspan":1,"alignment": None}
         # TODO: we could compute attrs["colwidth"] from
@@ -385,8 +402,8 @@ class TableCellTemplate (Template):
         return dict(
             type=self.tag,
             attrs=attrs,
-            content=as_outline_blocks(self.apply_templates(
-                element.xpath("./node()"))))
+            content=self.apply_templates(
+                element.xpath("./node()")))
 
 class Template__th (TableCellTemplate):
     tag = "th"
