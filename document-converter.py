@@ -2,8 +2,10 @@ import collections
 from functools import cached_property, wraps
 import html
 import json
+import logging
 import os
 import re
+import threading
 import types
 
 from lxml import etree
@@ -187,8 +189,7 @@ class DefaultTemplate (Template):
 
     @returns_inline
     def apply (self, element):
-        return {"type": "text",
-                "text": f"(? Unable to translate {tag(element)})"}
+        return TextTemplate.complaint(f"Unable to translate {tag(element)}")
 
 
 class DocumentTemplate (Template):
@@ -302,6 +303,11 @@ class TextTemplate (Template):
     def apply (self, element):
         return {"type":"text", "text": str(element)}
 
+    @classmethod
+    def complaint (cls, msg):
+        _Complaints.add(msg)
+        return {"type": "text", "text": f"(? {msg})"}
+
 
 class AcstructuredmacroTemplate (Template):
     @classmethod
@@ -396,10 +402,8 @@ class Template__a (Template):
                      }
                 ]
             else:
-                return {
-                    "type": "text",
-                    "text": f"(Unable to process hyperlink around {t})"
-                }
+                return TextTemplate.complaint(
+                    f"Unable to process hyperlink around {t}")
 
         return transformed
 
@@ -433,9 +437,12 @@ class DocumentConverter:
             if args[2] is not None]
 
     def get_converted_documents (self):
-        return { "documentId": [d.uuid for d in self.documents],
-                 "outline.document": [PythonStruct(DocumentTemplate().apply(d))
-                                      for d in self.documents] }
+        try:
+            return { "documentId": [d.uuid for d in self.documents],
+                     "outline.document": [PythonStruct(DocumentTemplate().apply(d))
+                                          for d in self.documents] }
+        finally:
+            _Complaints.flush()
 
     def list_attachments (self):
         ret = {"latest.version": [], "documentId": [], "filename": []}
@@ -457,6 +464,32 @@ class DocumentConverter:
 
     def _get_attachment_filenames (self, d):
         return list(flatten(d.etree.xpath("//ri:attachment/@ri:filename")))
+
+
+class _Complaints:
+    def __init__ (self):
+        self.complaints = {}
+
+    _per_thread = threading.local()
+
+    @classmethod
+    def _the (cls):
+        if not hasattr(cls._per_thread, "singleton"):
+            cls._per_thread.singleton = cls()
+        return cls._per_thread.singleton
+
+    @classmethod
+    def add (cls, msg):
+        self = cls._the()
+        self.complaints[msg] = self.complaints.get(msg, 0) + 1
+
+    @classmethod
+    def flush (cls):
+        self = cls._the()
+        for k in sorted(self.complaints, reverse=True,
+                        key=lambda k: self.complaints[k]):
+            logging.warning(f"{k} ({self.complaints[k]} times)")
+        self.complaints.clear()
 
 
 class _Document(collections.namedtuple("Document",
