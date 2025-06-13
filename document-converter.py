@@ -312,8 +312,15 @@ class TextTemplate (Template):
 class AcstructuredmacroTemplate (Template):
     @classmethod
     def admits (cls, element):
-        return (tag(element) == "ac:structured-macro" and
-                cls.ac_macro == element.xpath("./@ac:name")[0])
+        if cls.get_macro_name(element) is None:
+            return False
+
+        return cls.ac_macro == cls.get_macro_name(element)
+
+    @classmethod
+    def get_macro_name (self, element):
+        if tag(element) == "ac:structured-macro":
+            return element.xpath("./@ac:name")[0]
 
     @classproperty
     def ac_macro (cls):
@@ -321,6 +328,20 @@ class AcstructuredmacroTemplate (Template):
         if (len(components) == 2
             and components[0] == "AcstructuredmacroTemplate"):
             return re.sub("_", "-", components[1])
+
+
+class AcstructuredmacroTemplateDefault (AcstructuredmacroTemplate):
+    priority = 5
+
+    @classmethod
+    def admits (cls, element):
+        return cls.get_macro_name(element) is not None
+
+    @returns_block
+    def apply (self, element):
+        return as_outline_block(
+            TextTemplate.complaint(
+                f"Unable to translate ac:structured-macro {self.get_macro_name(element)}"))
 
 
 class AcstructuredmacroTemplate__table_plus (AcstructuredmacroTemplate):
