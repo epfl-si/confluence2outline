@@ -328,11 +328,23 @@ class TextTemplate (Template):
 class ListTemplate (Template):
     @returns_block
     def apply (self, element):
-        ret = {
-            "type": self.block_type,
-            "content": self.apply_templates(
-                element.xpath("./node()"))
-        }
+        subnodes = element.xpath("./node()")
+
+        # ⚠ <ul><ul>...</ul></ul> and other platypi spotted in the wild!
+        while (len(subnodes) == 1 and tag(subnodes[0]) == self.tag):
+            subnodes = subnodes[0].xpath("./node()")
+
+        content = []
+        for subnode in subnodes:
+            subsubnodes = (subnode.xpath("./node()") if tag(subnode) == "li"
+                           else [subnode])
+            content.append(dict(
+                type="list_item",
+                content=flatten(Template__p().segmented(subsubnodes))))
+
+        ret = dict(type=self.block_type,
+                   content=content)
+
         attrs = self.attrs(element)
         if attrs is not None:
             ret["attrs"] = attrs
@@ -349,14 +361,6 @@ class Template__ol (ListTemplate):
 
     def attrs (self, element):
         return {"order":1}
-
-class Template__li (ListTemplate):
-    @returns_block
-    def apply (self, element):
-        return dict(
-            type="list_item",
-            content=flatten(Template__p().segmented(
-                element.xpath("./node()"))))
 
 
 class AcstructuredmacroTemplate (Template):
