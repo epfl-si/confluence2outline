@@ -96,7 +96,7 @@ def returns_block_of_blocks (method):
 
 def is_outline_inline (transformed):
     """Sorry, couldn't resist."""
-    return transformed["type"] in ("text", "image", "mention")
+    return transformed["type"] in ("text", "image", "mention", "br")
 
 def as_outline_block (transformed):
     if is_outline_inline(transformed):
@@ -361,6 +361,15 @@ class Template__ol (ListTemplate):
 
     def attrs (self, element):
         return {"order":1}
+
+
+class Template__br (Template):
+    @returns_inlines
+    def apply (self, element):
+        if len(element.xpath("../node()")) == 1:
+            return []
+        else:
+            return { "type": "br" }
 
 
 class AcstructuredmacroTemplate (Template):
