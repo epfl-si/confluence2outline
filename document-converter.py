@@ -324,6 +324,40 @@ class TextTemplate (Template):
         return {"type": "text", "text": f"(? {msg})"}
 
 
+class ListTemplate (Template):
+    @returns_block
+    def apply (self, element):
+        ret = {
+            "type": self.block_type,
+            "content": self.apply_templates(
+                element.getchildren())
+        }
+        attrs = self.attrs(element)
+        if attrs is not None:
+            ret["attrs"] = attrs
+        return ret
+
+    def attrs (self, element):
+        return None
+
+class Template__ul (ListTemplate):
+    block_type = "bullet_list"
+
+class Template__ol (ListTemplate):
+    block_type = "ordered_list"
+
+    def attrs (self, element):
+        return {"order":1}
+
+class Template__li (ListTemplate):
+    @returns_block
+    def apply (self, element):
+        return dict(
+            type="list_item",
+            content=flatten(Template__p().segmented(
+                element.getchildren())))
+
+
 class AcstructuredmacroTemplate (Template):
     @classmethod
     def admits (cls, element):
