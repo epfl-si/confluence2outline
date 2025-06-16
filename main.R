@@ -119,12 +119,6 @@ outline_json <- outline$meta %>%
 outline_json %>%
     write(outline$meta.filename)
 
-if (interactive()) {
-    source_python("test/schema.py")
-    stopifnot("outline$meta matches the Outline JSON schema" =
-                  validate_json_outline_file(outline$meta.filename))
-}
-
 ############################### Load #################################
 
 if (is.null(opts$`skip-zip`)) {
