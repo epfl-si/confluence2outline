@@ -1,4 +1,5 @@
 import collections
+import colorsys
 from functools import cached_property, wraps
 import html
 import json
@@ -315,8 +316,17 @@ class TextTemplate (Template):
         return is_text_node(node)
 
     @returns_inline
-    def apply (self, element):
-        return {"type":"text", "text": str(element)}
+    def apply (self, node):
+        ret = {"type":"text", "text": str(node)}
+        color = Cascade.of(node).color
+        if color is not None and not (
+                color.is_black() or
+                color.is_confluence_visited_hyperlink()):
+            _Complaints.add(f"Rendering Confluence color {color.as_string_orig} as-is")
+            ret.setdefault("marks", []).append(dict(
+                type="highlight",
+                attrs=dict(color=color.as_hex_triple())))
+        return ret
 
     @classmethod
     def complaint (cls, msg):
@@ -369,6 +379,107 @@ class Template__br (Template):
             return []
         else:
             return { "type": "br" }
+
+
+class Template__span (Template):
+    pass    # Everything is looked “up” from below, see e.g. TextTemplate
+
+class Cascade:
+    """Poor man's CSS implementation."""
+
+    _all = {}
+
+    @classmethod
+    def of (cls, xml_node):
+        if xml_node not in cls._all:
+            cls._all[xml_node] = cls(xml_node)
+        return cls._all[xml_node]
+
+    @classmethod
+    def base (cls, node):
+        if not hasattr(node, "xpath"):
+            node = node.getparent()
+
+        styled = node.xpath("ancestor::*[@style]")
+        if len(styled) > 0:
+            return cls.of(styled[0])
+        else:
+            return None
+
+    def __init__ (self, xml_node):
+        """Private constructor, call `of()` instead."""
+        self.node = xml_node
+
+    @property
+    def proper_style (self):
+        if not hasattr(self.node, "attrib"):
+            return {}
+
+        return dict(
+            (s.strip()
+            for s in (
+                    chunk.split(":", 1) if ":" in chunk else (chunk, "")))
+            for chunk in (
+                    self.node.attrib.get("style", "")
+                    .strip().strip(';').split(';')))
+
+    @property
+    def style (self):
+        base = self.base(self.node)
+        base_style = base.style if base is not None else {}
+        return { **base_style, **self.proper_style }
+
+    @property
+    def color (self):
+        color_string = self.style.get("color", None)
+        return self.Color.parse(color_string) if color_string is not None else None
+
+    class Color:
+        def __init__(self, r: int, g: int, b: int):
+            if not all(0 <= v <= 255 for v in (r, g, b)):
+                raise ValueError("RGB values must be in the range 0–255.")
+            self.r = r
+            self.g = g
+            self.b = b
+
+        @classmethod
+        def parse (cls, string):
+            if string == "windowtext":
+                # Frankly, your guess is as good as mine.
+                return None
+
+            self = cls.from_rgb(string)  # Meh.
+            self.as_string_orig = string
+            return self
+
+        @classmethod
+        def from_rgb (cls, rgb_string):
+            match = re.fullmatch(r"rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)", rgb_string)
+            if not match:
+                raise ValueError(f"Invalid RGB string format: {rgb_string}")
+            r, g, b = map(int, match.groups())
+            return cls(r, g, b)
+
+        @cached_property
+        def hsv (self):
+            return colorsys.rgb_to_hsv(self.r / 255, self.g / 255, self.b / 255)
+
+        @property
+        def saturation(self):
+            return self.hsv[1]
+
+        @property
+        def value(self):
+            return self.hsv[2]
+
+        def as_hex_triple(self):
+            return "#{:02x}{:02x}{:02x}".format(self.r, self.g, self.b)
+
+        def is_confluence_visited_hyperlink (self):
+            return self.r == 23 and self.g == 43 and self.b == 77
+
+        def is_black (self):
+            return self.r == self.g == self.b == 0
 
 
 class AcstructuredmacroTemplate (Template):
