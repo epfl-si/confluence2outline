@@ -8,6 +8,7 @@ if (interactive()) {
     archive_path <- "/Users/quatrava/Downloads/ISAS-FSD-idevfsd-2025-03-28-11-36-24-881.xml.zip"
 } else {
     opts <- matrix(byrow=TRUE, ncol=4, c(
+      "dump-after-extract" , NA, 0, "logical",
       "from"               , NA, 2, "character",
       "skip-attachments"   , NA, 0, "logical",
       "skip-install"       , NA, 0, "logical",
@@ -35,8 +36,22 @@ if (setup_pyenv()$changed) {
 
 ############################## Extract ###############################
 
-source("confluence.R")
-confluence <- extract.confluence(archive_path = archive_path)
+undump.filename <- "extracted.Rdata"
+dump.after.extract <- ! is.null(opts$`dump-after-extract`)
+
+if ((! interactive()) & file.exists(undump.filename)
+    & ! dump.after.extract) {
+    confluence <- readRDS(file = undump.filename)
+} else {
+    source("confluence.R")
+    confluence <- extract.confluence(archive_path = archive_path)
+
+    if (dump.after.extract) {
+        confluence %>%
+            saveRDS(file = undump.filename)
+        quit()
+    }
+}
 
 confluence_everything <- list(pages = confluence$pages,
                               attachments = confluence$attachments)
