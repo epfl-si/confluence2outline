@@ -464,12 +464,12 @@ class Template__a (Template):
     @returns_inlines
     def apply (self, element):
         try:
-            href = element.xpath("./@href")[0]
+            href = str(element.xpath("./@href")[0])
 
         except IndexError:
             # 🤷‍♂️
             link_text = str(element.xpath('./text()')[0])
-            href = "https://" + link_text.strip()
+            href = "https://" + str(link_text).strip()
 
         transformed = self.apply_templates(element.getchildren())
 
@@ -491,7 +491,7 @@ class Template__a (Template):
 
 
 def is_text_node (node):
-    return hasattr(node, "splitlines")
+    return isinstance(node, _LxmlNamespacedTextNodeMembrane)
 
 
 ###################### No user-serviceable parts below #########################
@@ -545,7 +545,7 @@ class DocumentConverter:
         }
 
     def _get_attachment_filenames (self, d):
-        return list(flatten(d.etree.xpath("//ri:attachment/@ri:filename")))
+        return list(flatten(str(f) for f in d.etree.xpath("//ri:attachment/@ri:filename")))
 
 
 class _Complaints:
@@ -588,7 +588,7 @@ class _Document(collections.namedtuple("Document",
         Parse it correctly (i.e. strict XML), despite Confluence emitting both HTML
         entities *and* namespaced nodes.
         """
-        return _LxmlNamespacedMembrane(
+        return _LxmlNamespacedElementMembrane.of(
             etree.fromstring(
                 self._clean_namespaced_xml(
                     self.body)))
@@ -601,7 +601,7 @@ class _Document(collections.namedtuple("Document",
         namespaced = re.sub(
             "<confluence-body>",
             "<confluence-body %s>" % " ".join(
-                f'xmlns:{k}="{v}"' for (k, v) in _LxmlNamespacedMembrane.xmlns.items()),
+                f'xmlns:{k}="{v}"' for (k, v) in _LxmlNamespacedElementMembrane.xmlns.items()),
             confluence_xmlish)
 
         # ... We're not done yet. Confluence uses HTML entities, but
@@ -616,17 +616,34 @@ class _Document(collections.namedtuple("Document",
         return self.etree.xpath(xpath)
 
 
-class _LxmlNamespacedMembrane:
+class _LxmlNamespacedMembraneBase:
+    _instances = {}
+
+    def __init__(self, delegate):
+        """Private constructor, call `of()` instead."""
+        self.delegate = delegate
+
+    @classmethod
+    def of (cls, delegate):
+        cls_instances = cls._instances.setdefault(cls, {})
+        if delegate not in cls_instances:
+            cls_instances[delegate] = cls(delegate)
+        return cls_instances[delegate]
+
+    def getparent (self):
+        return self.__class__.of(self.delegate.getparent())
+
+
+class _LxmlNamespacedElementMembrane (_LxmlNamespacedMembraneBase):
     """Wrapper to paper over the XML namespace nonsense.
 
     - On the way in, auto-pass `namespaces={...}` to methods that care.
     - On the way out, un-James-Clark the `.tag` of wrapped objects.
     """
-
-    xmlns = { k: f"urn:{k}" for k in ("ri", "ac") }
-
     def __init__(self, delegate):
         self.delegate = delegate
+
+    xmlns = { k: f"urn:{k}" for k in ("ri", "ac") }
 
     @property
     def tag (self):
@@ -635,24 +652,35 @@ class _LxmlNamespacedMembrane:
     def __repr__ (self):
         return re.sub("^<", "<~", repr(self.delegate))
 
-    def getparent (self):
-        return self.__class__(self.delegate.getparent())
-
     def getchildren (self):
-        return [child if is_text_node(child) else self.__class__(child)
+        return [_LxmlNamespacedTextNodeMembrane.of(child)
+                if is_text_node(child)
+                else _LxmlNamespacedElementMembrane.of(child)
                 for child in self.delegate.getchildren()]
 
     def xpath (self, _path, *args, **kwargs):
         kwargs["namespaces"] = self.xmlns
         ret = self.delegate.xpath(_path, *args, **kwargs)
         return [
-            r if is_text_node(r) else _LxmlNamespacedMembrane(r)
+            _LxmlNamespacedTextNodeMembrane.of(r)
+            if hasattr(r, "splitlines")
+            else _LxmlNamespacedElementMembrane.of(r)
             for r in ret
         ]
+
+    @property
+    def attrib (self):
+        return dict((self.unclarkify(k), v) for (k, v) in self.delegate.attrib.items())
 
     @classmethod
     def unclarkify (cls, tag_name_in_james_clark_notation):
         return re.sub(r"{urn:([a-z]+)}", r"\1:", tag_name_in_james_clark_notation)
+
+class _LxmlNamespacedTextNodeMembrane (_LxmlNamespacedMembraneBase):
+    """Metaprogrammed object wrapper to paper over the XML namespace nonsense."""
+
+    def __str__ (self):
+        return str(self.delegate)
 
 
 class PythonStruct:
