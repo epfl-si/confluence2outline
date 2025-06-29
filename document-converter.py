@@ -240,39 +240,38 @@ class SplittableInlineContainerTemplate (Template):
     """
     @returns_blocks
     def apply (self, element):
-        def segmented (rendered):
-            accumulated_inline_content = []
+        yield from self.segmented(element.getchildren())
 
-            def push_inline_content (content):
-                accumulated_inline_content.extend(flatten(content))
+    def segmented (self, elements):
+        rendered = self.apply_templates(elements)
+        accumulated_inline_content = []
 
-            def flush_inline_content ():
-                if len(accumulated_inline_content):
-                    # TODO: we likely want to make a “peephole pass”
-                    # on `content` here; at least eliminate blank text
-                    # nodes, and maybe also weld together contiguous
-                    # "type": "text"s that happen to be split in
-                    # Confluence® for no good reason.
-                    yield {
-                        "type": self.outline_type,
-                        # Be sure to copy, not alias!
-                        "content": accumulated_inline_content[:]
-                    }
-                # ⚠ Do *not* perform assignment here! Python is not
-                # smart enough for that.
-                accumulated_inline_content[:] = []
+        def push_inline_content (content):
+            accumulated_inline_content.extend(flatten(content))
 
-            for piece in rendered:
-                if is_outline_inline(piece):
-                    push_inline_content(piece)
-                else:
-                    yield from flush_inline_content()
-                    yield piece
-            yield from flush_inline_content()
+        def flush_inline_content ():
+            if len(accumulated_inline_content):
+                # TODO: we likely want to make a “peephole pass”
+                # on `content` here; at least eliminate blank text
+                # nodes, and maybe also weld together contiguous
+                # "type": "text"s that happen to be split in
+                # Confluence® for no good reason.
+                yield {
+                    "type": self.outline_type,
+                    # Be sure to copy, not alias!
+                    "content": accumulated_inline_content[:]
+                }
+            # ⚠ Do *not* perform assignment here! Python is not
+            # smart enough for that.
+            accumulated_inline_content[:] = []
 
-        rendered = self.apply_templates(element.getchildren())
-
-        yield from segmented(rendered)
+        for piece in rendered:
+            if is_outline_inline(piece):
+                push_inline_content(piece)
+            else:
+                yield from flush_inline_content()
+                yield piece
+        yield from flush_inline_content()
 
 
 class HnTemplate (SplittableInlineContainerTemplate):
